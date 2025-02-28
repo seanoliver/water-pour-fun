@@ -1,4 +1,5 @@
 import * as Phaser from "phaser"
+import { shuffle } from "lodash"
 
 interface Tube {
   x: number
@@ -10,6 +11,7 @@ interface Tube {
 export default class MainScene extends Phaser.Scene {
   private tubes: Tube[] = []
   private tubeHeight = 4
+  private resetButton?: Phaser.GameObjects.Text
 
   constructor() {
     super("MainScene")
@@ -28,27 +30,70 @@ export default class MainScene extends Phaser.Scene {
       { x: 700, y: 300, colors: [] },
     ]
 
+    this.setupTubes()
+    
+    // Add reset button
+    this.resetButton = this.add.text(400, 500, 'RESET', { 
+      fontSize: '24px',
+      backgroundColor: '#333',
+      padding: { left: 20, right: 20, top: 10, bottom: 10 },
+      color: '#ffffff'
+    }).setOrigin(0.5);
+    
+    this.resetButton.setInteractive({ useHandCursor: true })
+      .on('pointerdown', () => {
+        this.resetGame();
+      })
+      .on('pointerover', () => {
+        this.resetButton?.setStyle({ backgroundColor: '#555' });
+      })
+      .on('pointerout', () => {
+        this.resetButton?.setStyle({ backgroundColor: '#333' });
+      });
+  }
+
+  private setupTubes() {
     const mixedColors = this.mixColors()
 
+    // Clear existing colors
+    this.tubes.forEach(tube => {
+      tube.colors = [];
+    });
+
+    // Assign new colors
     this.tubes.forEach((tube) => {
       tube.colors = mixedColors.splice(0, this.tubeHeight)
     })
 
     // Draw the tubes
     this.tubes.forEach((tube, index) => {
-      tube.graphics = this.add.graphics()
-      this.drawTube(tube)
+      // If graphics already exist, just redraw
+      if (tube.graphics) {
+        this.drawTube(tube);
+      } else {
+        // First time setup
+        tube.graphics = this.add.graphics()
+        this.drawTube(tube)
 
-      // Enable input: we detect clicks for "pouring"
-      tube.graphics.setInteractive(
-        new Phaser.Geom.Rectangle(tube.x - 25, tube.y - 75, 50, 150),
-        Phaser.Geom.Rectangle.Contains,
-      )
+        // Enable input: we detect clicks for "pouring"
+        tube.graphics.setInteractive(
+          new Phaser.Geom.Rectangle(tube.x - 25, tube.y - 75, 50, 150),
+          Phaser.Geom.Rectangle.Contains,
+        )
 
-      tube.graphics.on("pointerdown", () => {
-        this.handleTubeClick(index)
-      })
+        tube.graphics.on("pointerdown", () => {
+          this.handleTubeClick(index)
+        })
+      }
     })
+  }
+
+  private resetGame() {
+    // Clear selection if any
+    this.selectedTubeIndex = null;
+    
+    // Setup tubes with new colors
+    this.setupTubes();
   }
 
   private drawTube(tube: Tube) {
@@ -160,7 +205,7 @@ export default class MainScene extends Phaser.Scene {
       Array.from({ length: this.tubeHeight }, () => i)
     )
 
-    const mixedColors = orderedColors.flat().sort(() => Math.random() - 0.5)
+    const mixedColors = shuffle(orderedColors.flat())
 
     return mixedColors
   }
