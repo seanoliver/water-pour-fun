@@ -1,14 +1,14 @@
 'use client'
 
-import * as Phaser from "phaser"
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useState } from "react"
+import dynamic from 'next/dynamic'
 
 import MainScene from "./scenes/MainScene"
 import { APP_WIDTH } from "@/lib/constants"
 import { APP_HEIGHT } from "@/lib/constants"
 
-const config: Phaser.Types.Core.GameConfig = {
-  type: Phaser.AUTO,
+// Define base config without Phaser-specific types
+const configBase = {
   width: APP_WIDTH,
   height: APP_HEIGHT,
   backgroundColor: "#000000",
@@ -18,23 +18,39 @@ const config: Phaser.Types.Core.GameConfig = {
 
 export const GameContainer = () => {
   const phaserGameRef = useRef<HTMLDivElement>(null)
+  const [isClient, setIsClient] = useState(false)
 
   useEffect(() => {
-    let game: Phaser.Game | null = null
+    // Set isClient to true when component mounts on client side
+    setIsClient(true)
+  }, [])
 
-    // Create the Phaser game instance
-    game = new Phaser.Game({
-      ...config,
-      parent: phaserGameRef.current,
-    })
+  useEffect(() => {
+    // Only initialize Phaser on the client side
+    if (isClient) {
+      // Dynamic import of Phaser
+      import('phaser').then((PhaserModule) => {
+        let game: Phaser.Game | null = null
 
-    // Cleanup on unmount
-    return () => {
-      if (game) {
-        game.destroy(true)
-      }
+        // Create the complete config with Phaser-specific properties
+        const completeConfig = {
+          ...configBase,
+          type: PhaserModule.AUTO, // Use the correct Phaser.AUTO constant
+          parent: phaserGameRef.current,
+        }
+
+        // Create the Phaser game instance with the correct constructor
+        game = new PhaserModule.Game(completeConfig)
+
+        // Cleanup on unmount
+        return () => {
+          if (game) {
+            game.destroy(true)
+          }
+        }
+      })
     }
-  })
+  }, [isClient])
 
   return (
     <div className="flex justify-center items-center py-8">

@@ -1,6 +1,6 @@
 import Head from "next/head"
-import { GameContainer } from "@/components/GameContainer"
 import Link from "next/link"
+import { GameContainerWrapper } from "@/components/GameContainerWrapper"
 
 export default function Home() {
   return (
@@ -26,7 +26,7 @@ export default function Home() {
           </p>
         </header>
         <main className="flex justify-center items-center">
-          <GameContainer />
+          <GameContainerWrapper />
         </main>
         <footer className="text-center text-sm">
           <p>
@@ -45,3 +45,4 @@ export default function Home() {
     </div>
   )
 }
+
