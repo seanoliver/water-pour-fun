@@ -9,6 +9,7 @@ interface Tube {
 
 export default class MainScene extends Phaser.Scene {
   private tubes: Tube[] = []
+  private tubeHeight = 4
 
   constructor() {
     super("MainScene")
@@ -16,12 +17,22 @@ export default class MainScene extends Phaser.Scene {
 
   create() {
     // Three simple tubes for demonstration purposes
-    // TODO: Add support for layers, more tubes, etc.
+
+    // TODO: Support dynamically spacing the tubes based on tube count and board width
+    // TODO: Support dynamic tube heights
+    
     this.tubes = [
-      { x: 200, y: 300, colors: [0, 1, 1] },
-      { x: 400, y: 300, colors: [2, 2] },
-      { x: 600, y: 300, colors: [1, 2] },
+      { x: 100, y: 300, colors: [] },
+      { x: 300, y: 300, colors: [] },
+      { x: 500, y: 300, colors: [] },
+      { x: 700, y: 300, colors: [] },
     ]
+
+    const mixedColors = this.mixColors()
+
+    this.tubes.forEach((tube) => {
+      tube.colors = mixedColors.splice(0, this.tubeHeight)
+    })
 
     // Draw the tubes
     this.tubes.forEach((tube, index) => {
@@ -101,17 +112,56 @@ export default class MainScene extends Phaser.Scene {
 
     if (!fromTube.colors.length) return // nothing to pour
 
+    // Find how many consecutive same-color segments are at the top of the source tube
     const topFromColor = fromTube.colors[fromTube.colors.length - 1]
-    const toTopColor = toTube.colors[toTube.colors.length - 1] ?? null
+    let segmentsToPour = 1
 
-    if (toTube.colors.length < 4 &&  (toTopColor === null || toTopColor === topFromColor)) {
-      fromTube.colors.pop()
-      toTube.colors.push(topFromColor)
+    // Count consecutive matching colors from the top down
+    for (let i = fromTube.colors.length - 2; i >= 0; i--) {
+      if (fromTube.colors[i] === topFromColor) {
+        segmentsToPour++
+      } else {
+        break
+      }
+    }
+
+    // Check if we can pour into destination tube
+    const toTopColor = toTube.colors[toTube.colors.length - 1] ?? null
+    
+    // Can only pour if destination has enough space and color matches or is empty
+    const spaceAvailable = 4 - toTube.colors.length
+    const canPour = spaceAvailable > 0 && (toTopColor === null || toTopColor === topFromColor)
+    
+    if (canPour) {
+      // Calculate how many segments we can actually pour (limited by available space)
+      const segmentsToActuallyPour = Math.min(segmentsToPour, spaceAvailable)
+      
+      // Remove segments from source tube
+      for (let i = 0; i < segmentsToActuallyPour; i++) {
+        fromTube.colors.pop()
+      }
+      
+      // Add segments to destination tube
+      for (let i = 0; i < segmentsToActuallyPour; i++) {
+        toTube.colors.push(topFromColor)
+      }
     }
 
     // Redraw both tubes
-
     this.drawTube(fromTube)
     this.drawTube(toTube)
+  }
+
+  private mixColors () {
+    const tubeCount = this.tubes.length
+    const colorCount = tubeCount - 1
+
+    const orderedColors = Array.from({ length: colorCount }, (_, i) =>
+      Array.from({ length: this.tubeHeight }, () => i)
+    )
+
+    const mixedColors = orderedColors.flat().sort(() => Math.random() - 0.5)
+
+    return mixedColors
   }
 }
