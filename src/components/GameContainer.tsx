@@ -1,11 +1,9 @@
 'use client'
 
 import { useEffect, useRef, useState } from "react"
-import dynamic from 'next/dynamic'
 
+import { APP_HEIGHT, APP_WIDTH } from "@/lib/constants"
 import MainScene from "./scenes/MainScene"
-import { APP_WIDTH } from "@/lib/constants"
-import { APP_HEIGHT } from "@/lib/constants"
 
 // Define base config without Phaser-specific types
 const configBase = {
@@ -26,20 +24,19 @@ export const GameContainer = () => {
   }, [])
 
   useEffect(() => {
-    // Only initialize Phaser on the client side
+    // Only initialize/import Phaser on the client side
     if (isClient) {
-      // Dynamic import of Phaser
       import('phaser').then((PhaserModule) => {
         let game: Phaser.Game | null = null
 
-        // Create the complete config with Phaser-specific properties
+        // Complete config inclusive of Phaser-specific properties
         const completeConfig = {
           ...configBase,
-          type: PhaserModule.AUTO, // Use the correct Phaser.AUTO constant
+          type: PhaserModule.AUTO,
           parent: phaserGameRef.current,
         }
 
-        // Create the Phaser game instance with the correct constructor
+        // Create the Phaser game instance
         game = new PhaserModule.Game(completeConfig)
 
         // Cleanup on unmount
