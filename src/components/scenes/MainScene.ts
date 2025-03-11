@@ -9,7 +9,7 @@ export default class MainScene extends Phaser.Scene {
   private resetButton?: Phaser.GameObjects.Text
   private debugButton?: Phaser.GameObjects.Text
   private difficultyChooser?: Phaser.GameObjects.Text
-  private debugManager = new DebugManager(this)
+  public debugManager = new DebugManager(this)
   
   public difficulty: keyof typeof DIFFICULTY = "MEDIUM"
   public score: number = 0

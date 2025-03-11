@@ -1,5 +1,5 @@
 import * as Phaser from "phaser"
-import { COLOR_PALETTE } from "../../lib/constants"
+import { COLOR_PALETTE, COLORS } from "../../lib/constants"
 export class Tube {
   private graphics: Phaser.GameObjects.Graphics
   public colors: number[] = []
@@ -22,9 +22,9 @@ export class Tube {
 
     // Draw the outline with different style for selected tube
     if (this.selected) {
-      this.graphics.lineStyle(4, 0x00ffff, 1)
+      this.graphics.lineStyle(4, COLORS.CYAN, 1)
     } else {
-      this.graphics.lineStyle(2, 0x123456, 1)
+      this.graphics.lineStyle(2, COLORS.OLIVE, 1)
     }
 
     this.graphics.strokeRect(this.x - 25, this.y - 75, 50, 150)
@@ -34,6 +34,7 @@ export class Tube {
     const segmentHeight = 150 / this.maxHeight
 
     this.colors.forEach((colorIndex) => {
+      // TODO: Make the colors random / more dynamic
       const color = COLOR_PALETTE[colorIndex]
 
       this.graphics.fillStyle(color)

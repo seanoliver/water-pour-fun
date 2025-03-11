@@ -141,6 +141,7 @@ export class GameLogic {
   }
 
   isSolvable() {
+    // TODO: Put the minimal tube logic somewhere else
     // Define a minimal tube-like structure that doesn't render
     interface MinimalTube {
       colors: number[]
