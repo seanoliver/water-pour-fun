@@ -1,4 +1,4 @@
-import { PADDING_BOX } from "@/lib/constants"
+import { HEX_COLORS, PADDING_BOX } from "@/lib/constants"
 import MainScene from "../scenes/MainScene"
 
 export class DebugManager {
@@ -38,9 +38,9 @@ export class DebugManager {
 
     this.debugText = this.game.add.text(100, 50, debugInfo, {
       fontSize: "14px",
-      backgroundColor: "#800000",
+      backgroundColor: HEX_COLORS.CRIMSON,
       padding: PADDING_BOX,
-      color: "#ffffff",
+      color: HEX_COLORS.WHITE,
     }).setOrigin(0.5);
   }
 }

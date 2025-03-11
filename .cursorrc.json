@@ -1,0 +1,89 @@
+{
+  "editor": {
+    "formatOnSave": true,
+    "tabSize": 2,
+    "insertSpaces": true,
+    "detectIndentation": true,
+    "rulers": [80, 100],
+    "wordWrap": "off",
+    "trimTrailingWhitespace": true,
+    "insertFinalNewline": true
+  },
+  "typescript": {
+    "preferConstOverLet": true,
+    "preferArrowFunctions": true,
+    "preferTemplate": true,
+    "preferOptionalChaining": true,
+    "preferNullishCoalescing": true,
+    "preferEarlyReturn": true,
+    "preferImportType": true,
+    "preferExplicitReturnType": true
+  },
+  "lint": {
+    "semicolons": "never",
+    "trailingComma": "es5",
+    "quotes": "single",
+    "jsxQuotes": "double",
+    "arrowParens": "avoid",
+    "bracketSpacing": true,
+    "jsxBracketSameLine": false,
+    "printWidth": 80
+  },
+  "formatting": {
+    "indentStyle": "space",
+    "indentWidth": 2
+  },
+  "organization": {
+    "componentStructure": {
+      "orderImports": [
+        "react",
+        "next",
+        "external",
+        "internal",
+        "relative",
+        "styles"
+      ],
+      "groupExports": true,
+      "orderPropTypes": true
+    },
+    "folderStructure": {
+      "components": "src/components",
+      "pages": "src/app",
+      "hooks": "src/lib/hooks",
+      "utils": "src/lib/utils",
+      "types": "src/lib/types",
+      "styles": "src/app/globals.css"
+    }
+  },
+  "naming": {
+    "components": "PascalCase",
+    "hooks": "camelCase",
+    "utils": "camelCase",
+    "types": "PascalCase",
+    "interfaces": "PascalCase",
+    "constants": "UPPER_SNAKE_CASE",
+    "enums": "PascalCase",
+    "files": {
+      "components": "PascalCase",
+      "pages": "camelCase",
+      "hooks": "camelCase",
+      "utils": "camelCase"
+    }
+  },
+  "commitMessageRules": {
+    "types": [
+      "feat",
+      "fix",
+      "docs",
+      "style",
+      "refactor",
+      "perf",
+      "test",
+      "build",
+      "ci",
+      "chore",
+      "revert"
+    ],
+    "subjectLimit": 72
+  }
+} 
