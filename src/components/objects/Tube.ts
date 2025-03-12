@@ -28,32 +28,32 @@ export class Tube {
     this.setupGlow()
     this.setupInteractions()
     this.draw()
-    
+
     // Add a subtle idle animation
     // this.addIdleAnimation()
   }
 
   private setupGlow() {
     // Create a white circle sprite that we'll use as a glow effect
-    const textureName = 'tubeGlow'
-    
+    const textureName = "tubeGlow"
+
     // Check if texture already exists
     if (!this.scene.textures.exists(textureName)) {
       const texture = this.scene.textures.createCanvas(textureName, 120, 220)
       if (texture) {
         const context = texture.getContext()
         const grd = context.createRadialGradient(60, 110, 10, 60, 110, 60)
-        
-        grd.addColorStop(0, 'rgba(255, 255, 255, 0.8)')
-        grd.addColorStop(1, 'rgba(255, 255, 255, 0)')
-        
+
+        grd.addColorStop(0, "rgba(255, 255, 255, 0.8)")
+        grd.addColorStop(1, "rgba(255, 255, 255, 0)")
+
         context.fillStyle = grd
         context.fillRect(0, 0, 120, 220)
-        
+
         texture.refresh()
       }
     }
-    
+
     this.tubeGlow = this.scene.add.sprite(this.x, this.y, textureName)
     this.tubeGlow.setAlpha(0)
     this.tubeGlow.setBlendMode(Phaser.BlendModes.SCREEN)
@@ -69,42 +69,45 @@ export class Tube {
     // Create a path for the drop to follow
     const path = new Phaser.Curves.Path(this.x, this.y - 60)
     path.cubicBezierTo(
-      this.x, this.y - 30,
-      toTube.x, toTube.y - 30,
-      toTube.x, toTube.y - 60
+      this.x,
+      this.y - 30,
+      toTube.x,
+      toTube.y - 30,
+      toTube.x,
+      toTube.y - 60
     )
 
     // Animate the drop along the path
     const pourAnimation = this.scene.tweens.add({
       targets: drop,
-      x: path.getPoints().map(p => p.x),
-      y: path.getPoints().map(p => p.y),
+      x: path.getPoints().map((p) => p.x),
+      y: path.getPoints().map((p) => p.y),
       duration: 500,
       onComplete: () => {
         // Create a splash effect
         this.createSplashEffect(toTube.x, toTube.y - 60, color)
         drop.destroy()
-      }
+      },
     })
-    
+
     return pourAnimation
   }
 
   private createSplashEffect(x: number, y: number, color: number) {
     // Check if the tubeGlow texture exists (should have been created in setupGlow)
-    if (!this.scene.textures.exists('tubeGlow')) {
+    if (!this.scene.textures.exists("tubeGlow")) {
       return
     }
-    
-    const particles = this.scene.add.particles(x, y, 'tubeGlow', {
+
+    const particles = this.scene.add.particles(x, y, "tubeGlow", {
       speed: { min: 50, max: 150 },
       scale: { start: 0.2, end: 0 },
       quantity: 15,
       lifespan: 600,
       tint: COLOR_PALETTE[color],
-      blendMode: Phaser.BlendModes.SCREEN
+      blendMode: Phaser.BlendModes.SCREEN,
     })
-    
+
     // Stop emitting after a short time
     this.scene.time.delayedCall(100, () => {
       particles.stop()
@@ -126,10 +129,10 @@ export class Tube {
 
     // Draw the tube glass with rounded ends
     this.drawTubeGlass()
-    
+
     // Draw water color segments
     this.drawWaterSegments()
-    
+
     // Add glass reflections
     this.drawGlassReflections()
 
@@ -143,12 +146,12 @@ export class Tube {
     const width = this.TUBE_WIDTH
     const height = this.TUBE_HEIGHT
     const radius = this.TUBE_RADIUS
-    
+
     // Border color based on state
     let borderColor = COLORS.MEDIUM_TURQUOISE
     let borderWidth = this.TUBE_BORDER_WIDTH
     let borderAlpha = 0.7
-    
+
     if (this.selected) {
       borderColor = COLORS.CYAN
       borderWidth = this.TUBE_BORDER_WIDTH + 1
@@ -157,92 +160,91 @@ export class Tube {
       borderColor = COLORS.BRIGHT_ORANGE
       borderAlpha = 0.9
     }
-    
+
     // Draw tube background (glass effect)
     this.graphics.fillStyle(COLORS.WHITE, 0.15)
     this.drawRoundedTube(x, y, width, height, radius)
     this.graphics.fillPath()
-    
+
     // Draw tube border
     this.graphics.lineStyle(borderWidth, borderColor, borderAlpha)
     this.drawRoundedTube(x, y, width, height, radius)
     this.graphics.strokePath()
   }
 
-  private drawRoundedTube(x: number, y: number, width: number, height: number, radius: number) {
+  private drawRoundedTube(
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    radius: number
+  ) {
     const halfWidth = width / 2
-    
+
     // Create a rounded rectangle path for the tube
     this.graphics.beginPath()
-    
+
     // Top-left rounded corner
     this.graphics.moveTo(x - halfWidth + radius, y - height / 2)
-    
+
     // Top edge
     this.graphics.lineTo(x + halfWidth - radius, y - height / 2)
-    
+
     // Top-right rounded corner
     this.graphics.arc(
-      x + halfWidth - radius, 
-      y - height / 2 + radius, 
-      radius, 
-      -Math.PI / 2, 
-      0, 
+      x + halfWidth - radius,
+      y - height / 2 + radius,
+      radius,
+      -Math.PI / 2,
+      0,
       false
     )
-    
+
     // Right edge
     this.graphics.lineTo(x + halfWidth, y + height / 2 - radius)
-    
+
     // Bottom-right rounded corner
     this.graphics.arc(
-      x + halfWidth - radius, 
-      y + height / 2 - radius, 
-      radius, 
-      0, 
-      Math.PI / 2, 
+      x + halfWidth - radius,
+      y + height / 2 - radius,
+      radius,
+      0,
+      Math.PI / 2,
       false
     )
-    
+
     // Bottom rounded edge (half circle)
-    this.graphics.arc(
-      x, 
-      y + height / 2 - radius, 
-      halfWidth, 
-      0, 
-      Math.PI, 
-      false
-    )
-    
+    this.graphics.arc(x, y + height / 2 - radius, halfWidth, 0, Math.PI, false)
+
     // Bottom-left rounded corner
     this.graphics.arc(
-      x - halfWidth + radius, 
-      y + height / 2 - radius, 
-      radius, 
-      Math.PI / 2, 
-      Math.PI, 
+      x - halfWidth + radius,
+      y + height / 2 - radius,
+      radius,
+      Math.PI / 2,
+      Math.PI,
       false
     )
-    
+
     // Left edge
     this.graphics.lineTo(x - halfWidth, y - height / 2 + radius)
-    
+
     // Top-left rounded corner
     this.graphics.arc(
-      x - halfWidth + radius, 
-      y - height / 2 + radius, 
-      radius, 
-      Math.PI, 
-      3 * Math.PI / 2, 
+      x - halfWidth + radius,
+      y - height / 2 + radius,
+      radius,
+      Math.PI,
+      (3 * Math.PI) / 2,
       false
     )
-    
+
     this.graphics.closePath()
   }
 
   private drawWaterSegments() {
     if (this.colors.length === 0) return
-    
+
     const segmentHeight = this.TUBE_HEIGHT / this.maxHeight
     const halfWidth = this.TUBE_WIDTH / 2 - 3 // Slightly smaller than tube
     
@@ -254,113 +256,198 @@ export class Tube {
       const color = COLOR_PALETTE[colorIndex]
       const isTopSegment = index === this.colors.length - 1
       const isBottomSegment = index === 0
-      const segmentY = bottomY - (index * segmentHeight) - segmentHeight / 2
-      
-      // For the bottom segment, draw a rounded bottom
+      const segmentY = bottomY - index * segmentHeight - segmentHeight / 2
+
+      // For the bottom segment, draw a proper rounded bottom
       if (isBottomSegment) {
         this.graphics.fillStyle(color, 1)
-        
+
         // Create a path for the bottom segment with rounded bottom
         this.graphics.beginPath()
-        this.graphics.moveTo(this.x - halfWidth, segmentY + segmentHeight / 2)
-        this.graphics.lineTo(this.x + halfWidth, segmentY + segmentHeight / 2)
-        this.graphics.lineTo(this.x + halfWidth, segmentY - segmentHeight / 2 + 5)
         
-        // Bottom arc
+        // Start at the left side of the segment - MOVED UP to close the gap
+        const topY = segmentY - segmentHeight / 2
+        this.graphics.moveTo(this.x - halfWidth, topY)
+        
+        // Draw to the right side - MOVED UP to close the gap
+        this.graphics.lineTo(this.x + halfWidth, topY)
+        
+        // Draw down the right side
+        this.graphics.lineTo(this.x + halfWidth, bottomY)
+        
+        // Draw the bottom curve - a half-circle that fills the tube bottom
         this.graphics.arc(
-          this.x, 
-          segmentY - segmentHeight / 2 + 5, 
-          halfWidth, 
-          0, 
-          Math.PI, 
-          true
+          this.x,
+          bottomY,
+          halfWidth,
+          0,
+          Math.PI,
+          false
         )
         
-        this.graphics.lineTo(this.x - halfWidth, segmentY + segmentHeight / 2)
+        // Complete the path back to the starting point - MOVED UP to close the gap
+        this.graphics.lineTo(this.x - halfWidth, topY)
         this.graphics.closePath()
         this.graphics.fillPath()
-      } 
-      // For the top segment, add a slight wave effect
+        
+        // Add a subtle highlight at the bottom to give depth
+        this.graphics.fillStyle(0xffffff, 0.1)
+        this.graphics.fillEllipse(
+          this.x,
+          bottomY - 2,
+          halfWidth * 0.5,
+          3
+        )
+      }
+      // For the top segment, add a subtle wave effect
       else if (isTopSegment) {
         this.graphics.fillStyle(color, 1)
-        
+
         // Create a wavy top for the liquid
         this.graphics.beginPath()
         this.graphics.moveTo(this.x - halfWidth, segmentY + segmentHeight / 2)
-        
+
         // Bottom edge
         this.graphics.lineTo(this.x + halfWidth, segmentY + segmentHeight / 2)
-        
+
         // Right edge
         this.graphics.lineTo(this.x + halfWidth, segmentY - segmentHeight / 2)
-        
-        // Top wavy edge
-        const waveHeight = 3
-        const segments = 5
-        
+
+        // Top wavy edge - more subtle wave
+        const waveHeight = 1.5
+        const segments = 6
+
         for (let i = 0; i <= segments; i++) {
-          const pointX = this.x + halfWidth - (2 * halfWidth * (i / segments))
-          const pointY = segmentY - segmentHeight / 2 + 
-                         Math.sin(i / segments * Math.PI) * waveHeight
-          
+          const pointX = this.x + halfWidth - 2 * halfWidth * (i / segments)
+          // Use a more natural wave function
+          const pointY =
+            segmentY -
+            segmentHeight / 2 +
+            Math.sin((i / segments) * Math.PI) * waveHeight
+
           this.graphics.lineTo(pointX, pointY)
         }
-        
+
         // Left edge
         this.graphics.lineTo(this.x - halfWidth, segmentY + segmentHeight / 2)
         this.graphics.closePath()
         this.graphics.fillPath()
-        
-        // Add highlight on top of liquid
-        this.graphics.fillStyle(0xffffff, 0.3)
+
+        // Add highlight on top of liquid - more subtle
+        this.graphics.fillStyle(0xffffff, 0.2)
         this.graphics.fillEllipse(
-          this.x, 
-          segmentY - segmentHeight / 2 + 2, 
-          halfWidth * 1.2, 
-          6
+          this.x,
+          segmentY - segmentHeight / 2 + 1,
+          halfWidth * 0.8,
+          3
         )
-      } 
-      // For middle segments, draw a simple rectangle
+      }
+      // For middle segments, ensure they connect smoothly
       else {
         this.graphics.fillStyle(color, 1)
         this.graphics.fillRect(
-          this.x - halfWidth, 
-          segmentY - segmentHeight / 2, 
-          halfWidth * 2, 
-          segmentHeight
+          this.x - halfWidth,
+          segmentY - segmentHeight / 2,
+          halfWidth * 2,
+          segmentHeight + 1 // Add 1 pixel overlap to avoid gaps
         )
       }
     })
+    
+    // Ensure water doesn't visually overflow the tube
+    // We'll use a simpler approach by constraining the top segment's position
+    if (this.colors.length > 0) {
+      const maxY = this.y - this.TUBE_HEIGHT / 2 + this.TUBE_RADIUS + 2;
+      const topIndex = this.colors.length - 1;
+      const topSegmentY = bottomY - topIndex * segmentHeight - segmentHeight / 2;
+      
+      // If the top segment would overflow, redraw it with constrained height
+      if (topSegmentY - segmentHeight / 2 < maxY) {
+        const topColor = this.colors[topIndex];
+        
+        // Clear the potentially overflowing segment
+        this.graphics.fillStyle(0, 0); // Transparent
+        this.graphics.fillRect(
+          this.x - halfWidth - 1,
+          maxY - 5,
+          halfWidth * 2 + 2,
+          10
+        );
+        
+        // Redraw the top segment with proper constraints
+        this.graphics.fillStyle(COLOR_PALETTE[topColor], 1);
+        
+        // Calculate the visible portion height
+        const visibleHeight = Math.max(0, (topSegmentY + segmentHeight / 2) - maxY);
+        
+        if (visibleHeight > 0) {
+          // Draw a properly constrained top segment
+          this.graphics.fillRect(
+            this.x - halfWidth,
+            maxY,
+            halfWidth * 2,
+            visibleHeight
+          );
+          
+          // Add a subtle wave effect at the top
+          this.graphics.fillStyle(COLOR_PALETTE[topColor], 1);
+          this.graphics.beginPath();
+          
+          // Draw a gentle curve at the top
+          this.graphics.moveTo(this.x - halfWidth, maxY);
+          
+          const curvePoints = 5;
+          for (let i = 0; i <= curvePoints; i++) {
+            const pointX = this.x - halfWidth + (2 * halfWidth) * (i / curvePoints);
+            const pointY = maxY - Math.sin((i / curvePoints) * Math.PI) * 1.5;
+            this.graphics.lineTo(pointX, pointY);
+          }
+          
+          this.graphics.lineTo(this.x + halfWidth, maxY);
+          this.graphics.closePath();
+          this.graphics.fillPath();
+          
+          // Add a subtle highlight
+          this.graphics.fillStyle(0xffffff, 0.15);
+          this.graphics.fillEllipse(
+            this.x,
+            maxY - 1,
+            halfWidth * 0.7,
+            2
+          );
+        }
+      }
+    }
   }
 
   private drawGlassReflections() {
     const halfWidth = this.TUBE_WIDTH / 2
-    
+
     // Add glass reflection effect
     this.glassReflection.clear()
     this.glassReflection.fillStyle(COLORS.WHITE, 0.3)
-    
+
     // Add thin vertical reflection
     this.glassReflection.fillRect(
-      this.x + halfWidth * 0.5, 
-      this.y - this.TUBE_HEIGHT / 2 + 10, 
-      2, 
+      this.x + halfWidth * 0.5,
+      this.y - this.TUBE_HEIGHT / 2 + 10,
+      2,
       this.TUBE_HEIGHT - 20
     )
-    
+
     // Add thin highlight across the top curved area
     this.glassReflection.fillStyle(COLORS.WHITE, 0.4)
-    
+
     // Draw small circular highlights near the corners
     this.glassReflection.fillCircle(
-      this.x - halfWidth * 0.6, 
-      this.y - this.TUBE_HEIGHT / 2 + 10, 
+      this.x - halfWidth * 0.6,
+      this.y - this.TUBE_HEIGHT / 2 + 10,
       3
     )
-    
+
     this.glassReflection.fillCircle(
-      this.x + halfWidth * 0.2, 
-      this.y - this.TUBE_HEIGHT / 2 + 8, 
+      this.x + halfWidth * 0.2,
+      this.y - this.TUBE_HEIGHT / 2 + 8,
       2
     )
   }
@@ -369,24 +456,24 @@ export class Tube {
     if (this.selected || this.hovered) {
       // Update glow effect
       if (this.tubeGlow) {
-        const glowAlpha = this.selected ? 0.5 : (this.hovered ? 0.3 : 0)
+        const glowAlpha = this.selected ? 0.5 : this.hovered ? 0.3 : 0
         const glowColor = this.selected ? COLORS.CYAN : COLORS.BRIGHT_ORANGE
-        
+
         this.tubeGlow.setAlpha(glowAlpha)
         this.tubeGlow.setTint(glowColor)
       }
-      
+
       // Draw highlight on the edge
       this.tubeHighlight.clear()
       if (this.selected) {
         const highlight = this.selected ? COLORS.CYAN : COLORS.BRIGHT_ORANGE
         const highlightAlpha = this.selected ? 0.8 : 0.5
-        
+
         this.tubeHighlight.lineStyle(2, highlight, highlightAlpha)
         this.tubeHighlight.strokeRect(
-          this.x - this.TUBE_WIDTH / 2 - 4, 
-          this.y - this.TUBE_HEIGHT / 2 - 4, 
-          this.TUBE_WIDTH + 8, 
+          this.x - this.TUBE_WIDTH / 2 - 4,
+          this.y - this.TUBE_HEIGHT / 2 - 4,
+          this.TUBE_WIDTH + 8,
           this.TUBE_HEIGHT + 4
         )
       }
@@ -397,93 +484,60 @@ export class Tube {
 
   setupInteractions() {
     const hitArea = new Phaser.Geom.Rectangle(
-      this.x - this.TUBE_WIDTH / 2 - 5, 
-      this.y - this.TUBE_HEIGHT / 2 - 5, 
-      this.TUBE_WIDTH + 10, 
+      this.x - this.TUBE_WIDTH / 2 - 5,
+      this.y - this.TUBE_HEIGHT / 2 - 5,
+      this.TUBE_WIDTH + 10,
       this.TUBE_HEIGHT + 10
     )
-    
-    this.graphics.setInteractive(hitArea, Phaser.Geom.Rectangle.Contains)
-      .on('pointerover', this.onPointerOver, this)
-      .on('pointerout', this.onPointerOut, this)
+
+    this.graphics
+      .setInteractive(hitArea, Phaser.Geom.Rectangle.Contains)
+      .on("pointerover", this.onPointerOver, this)
+      .on("pointerout", this.onPointerOut, this)
   }
 
   onPointerOver() {
     this.hovered = true
     this.draw()
-    
+
     this.scene.tweens.add({
-      targets: [this.graphics, this.glassReflection, this.tubeHighlight, this.tubeGlow],
-      y: '-=5',
+      targets: [
+        this.graphics,
+        this.glassReflection,
+        this.tubeHighlight,
+        this.tubeGlow,
+      ],
+      y: { from: 0, to: -5 },
       duration: 200,
-      ease: 'Back.easeOut'
+      ease: "Back.easeOut",
     })
   }
 
   onPointerOut() {
     this.hovered = false
     this.draw()
-    
+
     this.scene.tweens.add({
-      targets: [this.graphics, this.glassReflection, this.tubeHighlight, this.tubeGlow],
-      y: '+=5',
+      targets: [
+        this.graphics,
+        this.glassReflection,
+        this.tubeHighlight,
+        this.tubeGlow,
+      ],
+      y: { from: -5, to: 0 },
       duration: 200,
-      ease: 'Sine.easeOut'
+      ease: "Sine.easeOut",
     })
   }
 
   setSelected(selected: boolean) {
     this.selected = selected
     this.draw()
-    
-    // Add selection animation
-    if (selected) {
-      // Play a "wiggle" animation to indicate selection
-      const tweens = [
-        { angle: -3, duration: 100, ease: 'Sine.easeInOut' },
-        { angle: 3, duration: 100, ease: 'Sine.easeInOut' },
-        { angle: -2, duration: 100, ease: 'Sine.easeInOut' },
-        { angle: 2, duration: 100, ease: 'Sine.easeInOut' },
-        { angle: 0, duration: 100, ease: 'Sine.easeInOut' }
-      ];
-      
-      // Chain multiple tweens for a wiggle effect
-      const currentTargets = [this.graphics, this.glassReflection, this.tubeHighlight, this.tubeGlow];
-      
-      tweens.forEach((tween, index) => {
-        this.shakeAnimation = this.scene.tweens.add({
-          targets: currentTargets,
-          angle: tween.angle,
-          duration: tween.duration,
-          ease: tween.ease,
-          delay: index * tween.duration
-        });
-      });
-    } else {
-      // Stop any ongoing shake animation
-      if (this.shakeAnimation && this.shakeAnimation.isPlaying()) {
-        this.shakeAnimation.stop()
-      }
-      
-      // Reset angle to 0
-      this.graphics.setAngle(0)
-      this.glassReflection.setAngle(0)
-      this.tubeHighlight.setAngle(0)
-      if (this.tubeGlow) this.tubeGlow.setAngle(0)
-    }
   }
 
+  // TODO: Implement this
   addClickListener(callback: (tube: Tube) => void) {
     this.graphics.on("pointerdown", () => {
-      // Add a "click" animation
-      this.scene.tweens.add({
-        targets: [this.graphics, this.glassReflection, this.tubeHighlight, this.tubeGlow],
-        scaleX: { from: 0.95, to: 1 },
-        scaleY: { from: 0.95, to: 1 },
-        duration: 150,
-        ease: 'Back.easeOut'
-      })
-      
       callback(this)
     })
   }
@@ -545,8 +599,8 @@ export class Tube {
   }
 
   /**
-   * Returns true if a given tube is completed, i.e. the tube is full 
-   * and all colors are the same   
+   * Returns true if a given tube is completed, i.e. the tube is full
+   * and all colors are the same
    */
   isCompleted(): boolean {
     if (this.colors.length !== this.maxHeight) return false
