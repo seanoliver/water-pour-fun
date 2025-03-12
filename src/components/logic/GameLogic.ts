@@ -3,308 +3,504 @@ import { Tube } from "../objects/Tube"
 import * as Phaser from "phaser"
 import { DebugManager } from "./DebugManager"
 
-// Define an interface for our game scene that includes the properties we need
 interface GameScene extends Phaser.Scene {
   isSolvable?: boolean
   debugManager?: DebugManager
 }
 
+interface GameState {
+  solved: boolean
+  solvable: boolean
+}
+
+interface MinimalTube {
+  colors: number[]
+  maxHeight: number
+  isEmpty(): boolean
+  isCompleted(): boolean
+  getTopColor(): number | null
+  getConsecutiveTopColors(): number
+  removeTopColors(count: number): void
+  addColors(color: number, count: number): void
+}
+
+interface PourAttempt {
+  canPour: boolean
+  segmentsToPour: number
+}
+
+const MAX_BFS_STATES = 100000
+
 export class GameLogic {
   private tubes: Tube[] = []
   private selectedTubeIndex: number | null = null
+  private events: Phaser.Events.EventEmitter
+  private setupAttempts = 0
 
-  constructor(private scene: GameScene) {}
+  constructor(private scene: GameScene) {
+    this.events = new Phaser.Events.EventEmitter()
+  }
 
-  setup(tubes: Tube[]) {
+  /**
+   * Set up the game with the provided tubes
+   */
+  setup(tubes: Tube[]): boolean {
     this.tubes = tubes
-    this.mixColors()
-    if (!this.isSolvable()) {
-      console.log("🔴 [Setup] Game is not solvable, resetting")
-      this.setup(tubes)
-    }
+    return this.generateSolvablePuzzle()
   }
 
-  reset() {
-    this.selectedTubeIndex = null
-    this.tubes.forEach((tube) => tube.setSelected(false))
-    this.mixColors()
-    if (!this.isSolvable()) {
-      console.log("🔴 [Reset] Game is not solvable, resetting")
-      this.setup(this.tubes)
-    }
+  /**
+   * Generate a solvable puzzle
+   */
+  private generateSolvablePuzzle(): boolean {
+    // Use reverse generation approach instead of random generation + BFS check
+    this.generateSolvablePuzzleFromSolvedState()
+    this.events.emit("gameSetup")
+    return true
   }
 
-  mixColors() {
+  /**
+   * Generate a solvable puzzle by starting from a solved state and applying random valid moves in reverse
+   */
+  private generateSolvablePuzzleFromSolvedState(): void {
+    if (!this.validateTubes()) return
+
     const tubeCount = this.tubes.length
-    // Enough colors to fill all but one tube
-    const colorCount = tubeCount - 1
+    const tubeHeight = this.tubes[0].maxHeight
+    const colorCount = tubeCount - 1 // One tube will be empty
 
-    const orderedColors = Array.from({ length: colorCount }, (_, i) =>
-      Array.from({ length: this.tubes[0].maxHeight }, () => i)
-    )
+    // 1. Start with a solved state: each color fills exactly one tube
+    this.clearTubes()
 
-    const mixedColors = shuffle(orderedColors.flat())
+    // Fill each tube with a single color (except for the last tube which remains empty)
+    for (let i = 0; i < colorCount; i++) {
+      const color = i
+      this.tubes[i].colors = Array(tubeHeight).fill(color)
+      this.tubes[i].draw()
+    }
 
-    // Clear existing colors
-    this.tubes.forEach((tube) => {
-      tube.colors = []
-    })
+    // Last tube is empty
+    this.tubes[colorCount].colors = []
+    this.tubes[colorCount].draw()
 
-    // Assign new colors
-    this.tubes.forEach((tube) => {
-      const tubeColors = mixedColors.splice(0, this.tubes[0].maxHeight)
-      tube.colors = tubeColors
-      tube.draw()
-    })
+    // 2. Apply random moves in reverse to shuffle the puzzle
+    // Number of random moves determines difficulty
+    const shuffleMoves = tubeHeight * tubeCount * 2 // Adjust for desired difficulty
+
+    for (let move = 0; move < shuffleMoves; move++) {
+      this.applyRandomReversePour()
+    }
   }
 
-  handleTubeClick(tube: Tube) {
-    const tubeIndex = this.tubes.indexOf(tube)
+  /**
+   * Apply a random valid reverse pour (moving liquid from one tube to another)
+   */
+  private applyRandomReversePour(): void {
+    const tubeCount = this.tubes.length
+    const validMoves: { fromIndex: number; toIndex: number; count: number }[] =
+      []
 
-    if (this.selectedTubeIndex === null) {
-      // First click: select the tube
-      this.selectedTubeIndex = tubeIndex
-      tube.setSelected(true)
-    } else {
-      // Second click: attempt to pour
-      if (this.selectedTubeIndex !== tubeIndex) {
-        this.pour(this.selectedTubeIndex, tubeIndex)
+    // Find all valid reverse pours
+    for (let fromIndex = 0; fromIndex < tubeCount; fromIndex++) {
+      const fromTube = this.tubes[fromIndex]
+
+      // Skip if source tube is empty
+      if (fromTube.isEmpty()) continue
+
+      for (let toIndex = 0; toIndex < tubeCount; toIndex++) {
+        if (fromIndex === toIndex) continue // Can't pour to the same tube
+
+        const toTube = this.tubes[toIndex]
+        const fromTopColor = fromTube.getTopColor()
+
+        if (fromTopColor === null) continue
+
+        // In a reverse pour, we're checking if this pour would have been valid in the forward direction
+        // A pour is valid if the destination has space and either is empty or has matching top color
+        if (toTube.colors.length < toTube.maxHeight) {
+          // For a reverse pour, we only need to move one segment at a time
+          // as we're constructing a path backwards
+          validMoves.push({
+            fromIndex,
+            toIndex,
+            count: 1, // Move just one segment at a time for reverse pours
+          })
+        }
       }
+    }
 
-      // Clear selection
+    // If there are valid moves, pick one randomly and apply it
+    if (validMoves.length > 0) {
+      const randomMove =
+        validMoves[Math.floor(Math.random() * validMoves.length)]
+      const fromTube = this.tubes[randomMove.fromIndex]
+      const toTube = this.tubes[randomMove.toIndex]
+      const color = fromTube.getTopColor()
+
+      if (color !== null) {
+        fromTube.removeTopColors(randomMove.count)
+        toTube.addColors(color, randomMove.count)
+        fromTube.draw()
+        toTube.draw()
+      }
+    }
+  }
+
+  /**
+   * Reset the game state
+   */
+  reset(): boolean {
+    this.clearSelection()
+    return this.generateSolvablePuzzle()
+  }
+
+  /**
+   * Clear the current tube selection
+   */
+  private clearSelection(): void {
+    if (this.selectedTubeIndex !== null) {
       this.tubes[this.selectedTubeIndex].setSelected(false)
       this.selectedTubeIndex = null
     }
+  }
 
-    // Check if game is over and update debug status
+  /**
+   * Mix colors in the tubes to create a new puzzle
+   */
+  private mixColors(): void {
+    if (!this.validateTubes()) return
+
+    const tubeCount = this.tubes.length
+    const tubeHeight = this.tubes[0].maxHeight
+
+    const colorGroups = this.generateColorGroups(tubeCount, tubeHeight)
+    const mixedColors = shuffle(colorGroups.flat())
+
+    this.clearTubes()
+    this.distributeMixedColors(mixedColors, tubeCount, tubeHeight)
+  }
+
+  /**
+   * Validates that tubes array is valid for the game
+   */
+  private validateTubes(): boolean {
+    if (!this.tubes.length || !this.tubes[0]) {
+      console.error("No tubes available for mixing colors")
+      return false
+    }
+    return true
+  }
+
+  /**
+   * Generate color groups for the puzzle
+   */
+  private generateColorGroups(
+    tubeCount: number,
+    tubeHeight: number
+  ): number[][] {
+    // Enough colors to fill all but one tube (empty tube)
+    const colorCount = tubeCount - 1
+
+    // Create arrays of each color, with tubeHeight instances of each
+    return Array.from({ length: colorCount }, (_, i) =>
+      Array.from({ length: tubeHeight }, () => i)
+    )
+  }
+
+  /**
+   * Clear all tubes of their colors
+   */
+  private clearTubes(): void {
+    this.tubes.forEach((tube) => {
+      tube.colors = []
+    })
+  }
+
+  /**
+   * Distribute mixed colors to tubes
+   */
+  private distributeMixedColors(
+    mixedColors: number[],
+    tubeCount: number,
+    tubeHeight: number
+  ): void {
+    // Assign new colors to tubes
+    for (let i = 0; i < tubeCount - 1; i++) {
+      const tubeColors = mixedColors.splice(0, tubeHeight)
+      this.tubes[i].colors = tubeColors
+      this.tubes[i].draw()
+    }
+
+    // Ensure the last tube is empty
+    this.tubes[tubeCount - 1].colors = []
+    this.tubes[tubeCount - 1].draw()
+  }
+
+  /**
+   * Handle a tube click event
+   */
+  handleTubeClick(tube: Tube): void {
+    const tubeIndex = this.findTubeIndex(tube)
+    if (tubeIndex === -1) return
+
+    if (this.selectedTubeIndex === null) {
+      this.handleFirstTubeClick(tube, tubeIndex)
+    } else {
+      this.handleSecondTubeClick(tubeIndex)
+    }
+
+    this.updateGameState()
+  }
+
+  /**
+   * Find the index of a tube in the tubes array
+   */
+  private findTubeIndex(tube: Tube): number {
+    const tubeIndex = this.tubes.indexOf(tube)
+
+    if (tubeIndex === -1) {
+      console.error("Clicked tube not found in tubes array")
+    }
+
+    return tubeIndex
+  }
+
+  /**
+   * Handle the first tube click (selection)
+   */
+  private handleFirstTubeClick(tube: Tube, tubeIndex: number): void {
+    // First click: select the tube if not empty
+    if (!tube.isEmpty()) {
+      this.selectedTubeIndex = tubeIndex
+      tube.setSelected(true)
+    }
+  }
+
+  /**
+   * Handle the second tube click (pour attempt)
+   */
+  private handleSecondTubeClick(tubeIndex: number): void {
+    if (this.selectedTubeIndex === null) return
+
+    // Second click: attempt to pour if not the same tube
+    if (this.selectedTubeIndex !== tubeIndex) {
+      const success = this.pour(this.selectedTubeIndex, tubeIndex)
+      if (success) {
+        this.events.emit("pourCompleted", {
+          fromIndex: this.selectedTubeIndex,
+          toIndex: tubeIndex,
+        })
+      }
+    }
+
+    // Clear selection
+    this.clearSelection()
+  }
+
+  /**
+   * Update the game state and emit appropriate events
+   */
+  private updateGameState(): void {
     const gameState = this.checkGameState()
 
-    // Update the solvability status on the scene
+    // Update the scene's solvability status
     if (this.scene.isSolvable !== undefined) {
       this.scene.isSolvable = gameState.solvable
 
-      // If scene has a debug manager, refresh the debug display
+      // Update debug display if available
       if (this.scene.debugManager) {
         this.scene.debugManager.showDebugInfo()
       }
     }
+
+    // Emit events based on game state
+    if (gameState.solved) {
+      this.events.emit("gameSolved")
+    } else if (!gameState.solvable) {
+      this.events.emit("gameNotSolvable")
+    }
   }
 
-  private pour(fromIndex: number, toIndex: number) {
+  /**
+   * Pour liquid from one tube to another
+   * Returns true if pour was successful
+   */
+  private pour(fromIndex: number, toIndex: number): boolean {
     const fromTube = this.tubes[fromIndex]
     const toTube = this.tubes[toIndex]
 
-    if (fromTube.isEmpty()) return // nothing to pour
+    const pourAttempt = this.calculatePourAttempt(fromTube, toTube)
 
-    const topFromColor = fromTube.getTopColor() as number
+    if (!pourAttempt.canPour) return false
+
+    // Calculate how many segments we can actually pour (limited by available space)
+    const topFromColor = fromTube.getTopColor()
+    if (topFromColor === null) return false
+
+    const spaceAvailable = toTube.maxHeight - toTube.colors.length
+    const segmentsToActuallyPour = Math.min(
+      pourAttempt.segmentsToPour,
+      spaceAvailable
+    )
+
+    // Execute the pour
+    this.executePour(fromTube, toTube, topFromColor, segmentsToActuallyPour)
+    return true
+  }
+
+  /**
+   * Calculate if a pour attempt is valid and how many segments can be poured
+   */
+  private calculatePourAttempt(fromTube: Tube, toTube: Tube): PourAttempt {
+    if (fromTube.isEmpty()) {
+      return { canPour: false, segmentsToPour: 0 }
+    }
+
+    const topFromColor = fromTube.getTopColor()
+    if (topFromColor === null) {
+      return { canPour: false, segmentsToPour: 0 }
+    }
+
     const segmentsToPour = fromTube.getConsecutiveTopColors()
-
-    // Check if we can pour into destination tube
     const toTopColor = toTube.getTopColor()
+    const spaceAvailable = toTube.maxHeight - toTube.colors.length
 
     // Can only pour if destination has enough space and color matches or is empty
-    const spaceAvailable = this.tubes[0].maxHeight - toTube.colors.length
-
     const canPour =
       spaceAvailable > 0 && (toTopColor === null || toTopColor === topFromColor)
 
-    if (canPour) {
-      // Calculate how many segments we can actually pour (limited by available space)
-      const segmentsToActuallyPour = Math.min(segmentsToPour, spaceAvailable)
-
-      // Remove segments from source tube
-      fromTube.removeTopColors(segmentsToActuallyPour)
-
-      // Add segments to destination tube
-      toTube.addColors(topFromColor, segmentsToActuallyPour)
-    }
+    return { canPour, segmentsToPour }
   }
 
-  checkGameState() {
-    const isSolvedState = this.isSolved()
-    const isSolvableState = this.isSolvable()
+  /**
+   * Execute the pour operation between tubes
+   */
+  private executePour(
+    fromTube: Tube,
+    toTube: Tube,
+    color: number,
+    count: number
+  ): void {
+    fromTube.removeTopColors(count)
+    toTube.addColors(color, count)
+  }
 
-    if (isSolvedState) {
-      // Player has won
-      console.log("Puzzle solved! 🎉")
-      // Could trigger victory animation or message here
+  /**
+   * Check the current game state
+   */
+  checkGameState(): GameState {
+    if (this.isSolved()) {
+      this.events.emit("gameSolved")
       return { solved: true, solvable: true }
-    } else if (!isSolvableState) {
-      // Game is in an unsolvable state
-      console.log("Puzzle is no longer solvable! 😞")
-      // Could trigger message to player or reset option
+    } else if (!this.isSolvable()) {
+      this.events.emit("gameNotSolvable")
       return { solved: false, solvable: false }
     }
 
-    // Game is still in progress
     return { solved: false, solvable: true }
   }
 
-  isSolvable() {
-    // TODO: Put the minimal tube logic somewhere else
-    // Define a minimal tube-like structure that doesn't render
-    interface MinimalTube {
-      colors: number[]
-      maxHeight: number
-      isEmpty(): boolean
-      isCompleted(): boolean
-      getTopColor(): number | null
-      getConsecutiveTopColors(): number
-      removeTopColors(count: number): void
-      addColors(color: number, count: number): void
-    }
+  /**
+   * Check if the game is solved
+   */
+  isSolved(): boolean {
+    // Game is solved if all tubes are either empty or contain the same color up to the max height
+    return this.tubes.every((tube) => tube.isCompleted())
+  }
 
-    // Create a minimal tube that doesn't render anything
-    const createMinimalTube = (
-      colors: number[],
-      maxHeight: number
-    ): MinimalTube => {
-      return {
-        colors: [...colors],
-        maxHeight,
-        isEmpty(): boolean {
-          return this.colors.length === 0
-        },
-        isCompleted(): boolean {
-          return (
-            this.colors.length === 0 ||
-            (this.colors.length === this.maxHeight &&
-              this.colors.every((color) => color === this.colors[0]))
-          )
-        },
-        getTopColor(): number | null {
-          return this.colors.length > 0
-            ? this.colors[this.colors.length - 1]
-            : null
-        },
-        getConsecutiveTopColors(): number {
-          if (this.isEmpty()) return 0
-
-          const topColor = this.getTopColor()
-          let count = 0
-
-          for (let i = this.colors.length - 1; i >= 0; i--) {
-            if (this.colors[i] === topColor) {
-              count++
-            } else {
-              break
-            }
-          }
-
-          return count
-        },
-        removeTopColors(count: number): void {
-          this.colors.splice(this.colors.length - count, count)
-        },
-        addColors(color: number, count: number): void {
-          for (let i = 0; i < count; i++) {
-            this.colors.push(color)
-          }
-        },
-      }
-    }
-
-    // Helper function to create a string representation of a game state
-    const getStateHash = (tubes: MinimalTube[]): string => {
-      return tubes.map((tube) => tube.colors.join(",")).join("|")
-    }
-
-    // Helper function to clone the current state of tubes
-    const cloneTubeState = (tubes: MinimalTube[]): MinimalTube[] => {
-      return tubes.map((tube) => createMinimalTube(tube.colors, tube.maxHeight))
-    }
-
-    // Helper function to check if a state is solved
-    const isStateSolved = (tubes: MinimalTube[]): boolean => {
-      return tubes.every((tube) => tube.isEmpty() || tube.isCompleted())
-    }
+  /**
+   * Check if the current game state is solvable
+   * Uses a breadth-first search to explore possible game states
+   */
+  isSolvable(): boolean {
+    if (!this.tubes.length) return false
 
     // Convert the actual tubes to minimal tubes
     const tubeMaxHeight = this.tubes[0].maxHeight
     const initialTubes = this.tubes.map((tube) =>
-      createMinimalTube(tube.colors, tubeMaxHeight)
+      this.createMinimalTube(tube.colors, tubeMaxHeight)
     )
 
-    // Set up the BFS
-    const queue: { tubes: MinimalTube[]; moves: string[] }[] = []
-    const visited = new Set<string>()
+    // Check for quick exit conditions
+    if (this.isAlreadySolved(initialTubes)) return true
+    if (!this.hasValidColorCounts(initialTubes, tubeMaxHeight)) return false
 
-    // Start with the current state
+    // Perform BFS to check solvability
+    return this.performSolvabilityBFS(initialTubes, tubeMaxHeight)
+  }
+
+  /**
+   * Check if the state is already solved
+   */
+  private isAlreadySolved(tubes: MinimalTube[]): boolean {
+    return tubes.every((tube) => tube.isCompleted())
+  }
+
+  /**
+   * Check if all colors have the correct counts
+   */
+  private hasValidColorCounts(
+    tubes: MinimalTube[],
+    tubeMaxHeight: number
+  ): boolean {
+    const colorCounts: Record<number, number> = {}
+
+    tubes.forEach((tube) => {
+      tube.colors.forEach((color) => {
+        colorCounts[color] = (colorCounts[color] || 0) + 1
+      })
+    })
+
+    // Each color should appear exactly tubeMaxHeight times for the puzzle to be solvable
+    for (const color in colorCounts) {
+      if (colorCounts[color] !== tubeMaxHeight && colorCounts[color] > 0) {
+        return false
+      }
+    }
+
+    return true
+  }
+
+  /**
+   * Perform a breadth-first search to check if the puzzle is solvable
+   */
+  private performSolvabilityBFS(
+    initialTubes: MinimalTube[],
+    tubeMaxHeight: number
+  ): boolean {
+    // Helper functions
+    const getStateHash = this.createStateHashFunction()
     const initialHash = getStateHash(initialTubes)
 
-    queue.push({ tubes: initialTubes, moves: [] })
-    visited.add(initialHash)
+    // Set up the BFS
+    const queue: { tubes: MinimalTube[]; moveCount: number }[] = []
+    const visited = new Set<string>([initialHash])
+
+    queue.push({ tubes: initialTubes, moveCount: 0 })
 
     while (queue.length > 0) {
-      const { tubes, moves } = queue.shift()!
+      const { tubes, moveCount } = queue.shift()!
+      const newStates = this.generateNextStates(tubes, tubeMaxHeight)
 
-      // Check if this state is already solved
-      if (isStateSolved(tubes)) {
-        return true
-      }
+      for (const { newTubes, hash } of newStates) {
+        // Check if this new state is solved
+        if (this.isAlreadySolved(newTubes)) {
+          return true
+        }
 
-      // Generate all possible next states by trying all possible pours
-      for (let fromIndex = 0; fromIndex < tubes.length; fromIndex++) {
-        for (let toIndex = 0; toIndex < tubes.length; toIndex++) {
-          if (fromIndex === toIndex) continue // Can't pour to the same tube
+        if (!visited.has(hash)) {
+          visited.add(hash)
+          queue.push({
+            tubes: newTubes,
+            moveCount: moveCount + 1,
+          })
 
-          const fromTube = tubes[fromIndex]
-          const toTube = tubes[toIndex]
-
-          // Skip if source tube is empty
-          if (fromTube.isEmpty()) continue
-
-          // Get the top color and count of consecutive top colors
-          const topFromColor = fromTube.getTopColor()
-          const segmentsToPour = fromTube.getConsecutiveTopColors()
-
-          // Check if we can pour into destination tube
-          const toTopColor = toTube.getTopColor()
-
-          // Space available in the destination tube
-          const spaceAvailable = toTube.maxHeight - toTube.colors.length
-
-          // Can only pour if destination has enough space and color matches or is empty
-          const canPour =
-            spaceAvailable > 0 &&
-            (toTopColor === null || toTopColor === topFromColor)
-
-          if (canPour) {
-            // Calculate how many segments we can actually pour
-            const segmentsToActuallyPour = Math.min(
-              segmentsToPour,
-              spaceAvailable
+          // Limit the search space to prevent excessive memory usage
+          if (visited.size > MAX_BFS_STATES) {
+            console.warn(
+              `Search space too large (${visited.size} states), stopping BFS`
             )
-
-            // Create a new state by cloning current tubes
-            const newTubes = cloneTubeState(tubes)
-
-            // Perform the pour operation
-            newTubes[fromIndex].removeTopColors(segmentsToActuallyPour)
-            newTubes[toIndex].addColors(
-              topFromColor as number,
-              segmentsToActuallyPour
-            )
-
-            // Convert to hash to check if we've seen this state before
-            const newStateHash = getStateHash(newTubes)
-
-            if (!visited.has(newStateHash)) {
-              visited.add(newStateHash)
-              queue.push({
-                tubes: newTubes,
-                moves: [
-                  ...moves,
-                  `Pour ${segmentsToActuallyPour} from tube ${fromIndex} to tube ${toIndex}`,
-                ],
-              })
-
-              // Optional: limit the search space to prevent excessive memory usage
-              if (visited.size > 100000) {
-                console.warn("Search space too large, stopping BFS")
-                return true // Assume it's solvable rather than continuing indefinitely
-              }
-            }
+            return true // Assume it's solvable rather than continuing indefinitely
           }
         }
       }
@@ -314,9 +510,169 @@ export class GameLogic {
     return false
   }
 
-  // TODO: Implement this
-  isSolved() {
-    // Game is solved if all tubes are either empty or contain the same color
-    return this.tubes.every((tube) => tube.isCompleted())
+  /**
+   * Generate all possible next states from the current state
+   */
+  private generateNextStates(
+    tubes: MinimalTube[],
+    tubeMaxHeight: number
+  ): { newTubes: MinimalTube[]; hash: string }[] {
+    const result: { newTubes: MinimalTube[]; hash: string }[] = []
+    const getStateHash = this.createStateHashFunction()
+    const cloneTubeState = this.createCloneStateFunction()
+
+    for (let fromIndex = 0; fromIndex < tubes.length; fromIndex++) {
+      const fromTube = tubes[fromIndex]
+
+      // Skip if source tube is empty or already completed
+      if (fromTube.isEmpty() || fromTube.isCompleted()) continue
+
+      const topFromColor = fromTube.getTopColor()
+      if (topFromColor === null) continue
+
+      const segmentsToPour = fromTube.getConsecutiveTopColors()
+
+      for (let toIndex = 0; toIndex < tubes.length; toIndex++) {
+        if (fromIndex === toIndex) continue // Can't pour to the same tube
+
+        const toTube = tubes[toIndex]
+
+        // Skip if destination tube is full or already completed
+        if (toTube.colors.length === toTube.maxHeight || toTube.isCompleted())
+          continue
+
+        // Check if we can pour into destination tube
+        const toTopColor = toTube.getTopColor()
+        const spaceAvailable = toTube.maxHeight - toTube.colors.length
+
+        // Optimization: don't pour if it would just fill an empty tube with a partial color sequence
+        if (
+          toTube.isEmpty() &&
+          segmentsToPour < tubeMaxHeight &&
+          fromTube.colors.length > segmentsToPour
+        ) {
+          continue
+        }
+
+        // Can only pour if destination has enough space and color matches or is empty
+        const canPour =
+          spaceAvailable > 0 &&
+          (toTopColor === null || toTopColor === topFromColor)
+
+        if (canPour) {
+          // Calculate how many segments we can actually pour
+          const segmentsToActuallyPour = Math.min(
+            segmentsToPour,
+            spaceAvailable
+          )
+
+          // Create a new state by cloning current tubes
+          const newTubes = cloneTubeState(tubes)
+
+          // Perform the pour operation
+          newTubes[fromIndex].removeTopColors(segmentsToActuallyPour)
+          newTubes[toIndex].addColors(topFromColor, segmentsToActuallyPour)
+
+          // Add to results
+          result.push({
+            newTubes,
+            hash: getStateHash(newTubes),
+          })
+        }
+      }
+    }
+
+    return result
+  }
+
+  /**
+   * Creates a function for generating state hashes
+   */
+  private createStateHashFunction() {
+    return (tubes: MinimalTube[]): string => {
+      return tubes.map((tube) => tube.colors.join(",")).join("|")
+    }
+  }
+
+  /**
+   * Creates a function for cloning tube states
+   */
+  private createCloneStateFunction() {
+    return (tubes: MinimalTube[]): MinimalTube[] => {
+      return tubes.map((tube) =>
+        this.createMinimalTube(tube.colors, tube.maxHeight)
+      )
+    }
+  }
+
+  /**
+   * Creates a minimal tube for solvability calculations
+   */
+  private createMinimalTube(colors: number[], maxHeight: number): MinimalTube {
+    return {
+      colors: [...colors],
+      maxHeight,
+      isEmpty(): boolean {
+        return this.colors.length === 0
+      },
+      isCompleted(): boolean {
+        return (
+          this.isEmpty() ||
+          (this.colors.length === this.maxHeight &&
+            this.colors.every((color) => color === this.colors[0]))
+        )
+      },
+      getTopColor(): number | null {
+        return this.colors.length > 0
+          ? this.colors[this.colors.length - 1]
+          : null
+      },
+      getConsecutiveTopColors(): number {
+        if (this.isEmpty()) return 0
+
+        const topColor = this.getTopColor()
+        let count = 0
+
+        for (let i = this.colors.length - 1; i >= 0; i--) {
+          if (this.colors[i] === topColor) {
+            count++
+          } else {
+            break
+          }
+        }
+
+        return count
+      },
+      removeTopColors(count: number): void {
+        this.colors.splice(this.colors.length - count, count)
+      },
+      addColors(color: number, count: number): void {
+        for (let i = 0; i < count; i++) {
+          this.colors.push(color)
+        }
+      },
+    }
+  }
+
+  /**
+   * Add an event listener
+   */
+  on(
+    event: string,
+    fn: (...args: unknown[]) => void,
+    context?: unknown
+  ): Phaser.Events.EventEmitter {
+    return this.events.on(event, fn, context)
+  }
+
+  /**
+   * Remove an event listener
+   */
+  off(
+    event: string,
+    fn?: (...args: unknown[]) => void,
+    context?: unknown
+  ): Phaser.Events.EventEmitter {
+    return this.events.off(event, fn, context)
   }
 }

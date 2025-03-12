@@ -115,13 +115,10 @@ export class Tube {
 
   /**
    * Returns true if a given tube is completed, i.e. the tube is full 
-   * and all colors are the same
-   * @returns boolean
+   * and all colors are the same   
    */
   isCompleted(): boolean {
     if (this.colors.length !== this.maxHeight) return false
-
-    // All colors must be the same
     const firstColor = this.colors[0]
     return this.colors.every((color) => color === firstColor)
   }
