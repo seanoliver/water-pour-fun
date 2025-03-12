@@ -292,6 +292,14 @@ export default class MainScene extends Phaser.Scene {
     const nextIndex = (currentIndex + 1) % difficulties.length
     this.difficulty = difficulties[nextIndex]
     this.difficultyChooser?.setText(this.difficulty)
+    
+    // Reset the game with the new difficulty
+    if (this.gameLogic) {
+      this.gameLogic.reset()
+    }
+    
+    // Update debug display if in debug mode
+    this.debugManager.updateSolvableState()
   }
 
   // This method is called from GameLogic when the game is over

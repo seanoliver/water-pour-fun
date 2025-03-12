@@ -66,6 +66,10 @@ export class GameLogic {
     // Use reverse generation approach instead of random generation + BFS check
     this.generateSolvablePuzzleFromSolvedState()
     this.events.emit("gameSetup")
+    
+    // Update the game state to ensure debug info is current
+    this.updateGameState()
+    
     return true
   }
 
@@ -166,6 +170,8 @@ export class GameLogic {
     this.moveHistory = []
     // Notify about history change
     this.events.emit("historyChange", this.moveHistory.length)
+    // Update the game state to ensure debug info is current
+    this.updateGameState()
     return true
   }
 
@@ -324,7 +330,7 @@ export class GameLogic {
 
       // Update debug display if available
       if (this.scene.debugManager) {
-        this.scene.debugManager.showDebugInfo()
+        this.scene.debugManager.updateSolvableState()
       }
     }
 

@@ -20,6 +20,16 @@ export class DebugManager {
     return this.debugMode
   }
 
+  /**
+   * Update the debug display with the current solvable state
+   * This can be called whenever the board state changes
+   */
+  updateSolvableState() {
+    if (this.debugMode) {
+      this.showDebugInfo()
+    }
+  }
+
   showDebugInfo() {
     // Clear previous debug text if it exists
     if (this.debugText) {

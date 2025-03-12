@@ -1,6 +1,6 @@
 import * as Phaser from "phaser"
 import { COLOR_PALETTE, COLORS } from "@/lib/constants"
-import { PhaserGraphics } from "@/lib/phaser-graphics"
+import { PhaserGraphics } from "@/utils/phaser-graphics"
 
 export class Tube {
   private graphics: Phaser.GameObjects.Graphics
@@ -10,8 +10,6 @@ export class Tube {
   public colors: number[] = []
   private selected: boolean = false
   private hovered: boolean = false
-  private pourAnimation?: Phaser.Tweens.Tween
-  private shakeAnimation?: Phaser.Tweens.Tween
   private readonly TUBE_WIDTH = 50
   private readonly TUBE_HEIGHT = 150
   private readonly TUBE_RADIUS = 12
@@ -29,9 +27,6 @@ export class Tube {
     this.setupGlow()
     this.setupInteractions()
     this.draw()
-
-    // Add a subtle idle animation
-    // this.addIdleAnimation()
   }
 
   private setupGlow() {
@@ -273,7 +268,8 @@ export class Tube {
   private drawWaterSegments() {
     if (this.colors.length === 0) return
 
-    const segmentHeight = this.TUBE_HEIGHT / this.maxHeight
+    
+    const segmentHeight = this.TUBE_HEIGHT / (this.maxHeight + 1)
     const halfWidth = this.TUBE_WIDTH / 2 - 3 // Slightly smaller than tube
 
     // Calculate the bottom position of the tube's inner area
@@ -286,18 +282,18 @@ export class Tube {
       const isBottomSegment = index === 0
       const segmentY = bottomY - index * segmentHeight - segmentHeight / 2
 
-      // For the bottom segment, draw a proper rounded bottom
+      // Rounded bottom segment
       if (isBottomSegment) {
         PhaserGraphics.setFillStyle(this.graphics, { color })
 
         // Create a path for the bottom segment with rounded bottom
         PhaserGraphics.beginPath(this.graphics)
 
-        // Start at the left side of the segment - MOVED UP to close the gap
+        // Start at the left side of the segment
         const topY = segmentY - segmentHeight / 2
         PhaserGraphics.moveTo(this.graphics, { x: this.x - halfWidth, y: topY })
 
-        // Draw to the right side - MOVED UP to close the gap
+        // Draw to the right side
         PhaserGraphics.lineTo(this.graphics, { x: this.x + halfWidth, y: topY })
 
         // Draw down the right side
@@ -316,7 +312,7 @@ export class Tube {
           anticlockwise: false,
         })
 
-        // Complete the path back to the starting point - MOVED UP to close the gap
+        // Complete the path back to the starting point
         PhaserGraphics.lineTo(this.graphics, { x: this.x - halfWidth, y: topY })
         PhaserGraphics.closePath(this.graphics)
         PhaserGraphics.fillPath(this.graphics)
