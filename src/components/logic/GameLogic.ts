@@ -29,6 +29,14 @@ interface PourAttempt {
   segmentsToPour: number
 }
 
+// Add a new interface for tracking moves
+interface Move {
+  fromIndex: number;
+  toIndex: number;
+  color: number;
+  count: number;
+}
+
 const MAX_BFS_STATES = 100000
 
 export class GameLogic {
@@ -36,6 +44,8 @@ export class GameLogic {
   private selectedTubeIndex: number | null = null
   private events: Phaser.Events.EventEmitter
   private setupAttempts = 0
+  // Add move history array to track moves
+  private moveHistory: Move[] = []
 
   constructor(private scene: GameScene) {
     this.events = new Phaser.Events.EventEmitter()
@@ -151,7 +161,12 @@ export class GameLogic {
    */
   reset(): boolean {
     this.clearSelection()
-    return this.generateSolvablePuzzle()
+    this.generateSolvablePuzzleFromSolvedState()
+    // Clear move history when game is reset
+    this.moveHistory = []
+    // Notify about history change
+    this.events.emit("historyChange", this.moveHistory.length)
+    return true
   }
 
   /**
@@ -343,6 +358,11 @@ export class GameLogic {
       spaceAvailable
     )
 
+    // Trigger the visual pour animation if available
+    if (typeof fromTube.pourTo === 'function') {
+      fromTube.pourTo(toTube)
+    }
+
     // Execute the pour
     this.executePour(fromTube, toTube, topFromColor, segmentsToActuallyPour)
     return true
@@ -383,6 +403,22 @@ export class GameLogic {
   ): void {
     fromTube.removeTopColors(count)
     toTube.addColors(color, count)
+    
+    // Record this move in the history
+    const fromIndex = this.findTubeIndex(fromTube);
+    const toIndex = this.findTubeIndex(toTube);
+    
+    this.moveHistory.push({
+      fromIndex,
+      toIndex,
+      color,
+      count
+    });
+    
+    // Notify about history change
+    this.events.emit("historyChange", this.moveHistory.length)
+    
+    this.updateGameState()
   }
 
   /**
@@ -674,5 +710,45 @@ export class GameLogic {
     context?: unknown
   ): Phaser.Events.EventEmitter {
     return this.events.off(event, fn, context)
+  }
+
+  // Add a method to undo the last move
+  undo(): boolean {
+    if (this.moveHistory.length === 0) {
+      return false; // No moves to undo
+    }
+    
+    // Get the last move
+    const lastMove = this.moveHistory.pop();
+    
+    if (!lastMove) {
+      return false;
+    }
+    
+    // Clear any selection
+    this.clearSelection();
+    
+    // Perform the reverse operation
+    const fromTube = this.tubes[lastMove.toIndex];   // Note: these are reversed
+    const toTube = this.tubes[lastMove.fromIndex];   // for undoing
+    
+    // Remove the colors from the destination tube
+    fromTube.removeTopColors(lastMove.count);
+    
+    // Add the colors back to the source tube
+    toTube.addColors(lastMove.color, lastMove.count);
+    
+    // Notify about history change
+    this.events.emit("historyChange", this.moveHistory.length)
+    
+    // Update game state after undoing
+    this.updateGameState();
+    
+    return true;
+  }
+  
+  // Get the number of moves made
+  getMoveCount(): number {
+    return this.moveHistory.length;
   }
 }
