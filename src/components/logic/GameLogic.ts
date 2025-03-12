@@ -37,7 +37,7 @@ interface Move {
   count: number;
 }
 
-const MAX_BFS_STATES = 100000
+const MAX_BFS_STATES = 500000 // Increased from 100000 to allow for more thorough search
 
 export class GameLogic {
   private tubes: Tube[] = []
@@ -63,7 +63,6 @@ export class GameLogic {
    * Generate a solvable puzzle
    */
   private generateSolvablePuzzle(): boolean {
-    // Use reverse generation approach instead of random generation + BFS check
     this.generateSolvablePuzzleFromSolvedState()
     this.events.emit("gameSetup")
     
@@ -82,26 +81,71 @@ export class GameLogic {
     const tubeCount = this.tubes.length
     const tubeHeight = this.tubes[0].maxHeight
     const colorCount = tubeCount - 1 // One tube will be empty
+    
+    // Maximum number of attempts to generate a solvable puzzle
+    const maxAttempts = 5
+    let attempts = 0
+    let isSolvable = false
+    
+    while (!isSolvable && attempts < maxAttempts) {
+      attempts++
+      
+      // 1. Start with a solved state: each color fills exactly one tube
+      this.clearTubes()
 
-    // 1. Start with a solved state: each color fills exactly one tube
+      // Fill each tube with a single color (except for the last tube which remains empty)
+      for (let i = 0; i < colorCount; i++) {
+        const color = i
+        this.tubes[i].colors = Array(tubeHeight).fill(color)
+        this.tubes[i].draw()
+      }
+
+      // Last tube is empty
+      this.tubes[colorCount].colors = []
+      this.tubes[colorCount].draw()
+
+      // 2. Apply random moves in reverse to shuffle the puzzle
+      // Number of random moves determines difficulty
+      const shuffleMoves = tubeHeight * tubeCount * 2 // Adjust for desired difficulty
+
+      for (let move = 0; move < shuffleMoves; move++) {
+        this.applyRandomReversePour()
+      }
+      
+      // Verify that the generated puzzle is solvable
+      isSolvable = this.isSolvable()
+    }
+    
+    // If we couldn't generate a solvable puzzle after maxAttempts, 
+    // create a simple solvable puzzle (almost solved state)
+    if (!isSolvable) {
+      console.warn("Could not generate a complex solvable puzzle after multiple attempts. Creating a simpler puzzle.")
+      this.createSimpleSolvablePuzzle(tubeCount, tubeHeight, colorCount)
+    }
+  }
+  
+  /**
+   * Create a simple solvable puzzle (almost solved state with just a few moves needed)
+   */
+  private createSimpleSolvablePuzzle(tubeCount: number, tubeHeight: number, colorCount: number): void {
+    // Start with a solved state
     this.clearTubes()
-
+    
     // Fill each tube with a single color (except for the last tube which remains empty)
     for (let i = 0; i < colorCount; i++) {
       const color = i
       this.tubes[i].colors = Array(tubeHeight).fill(color)
       this.tubes[i].draw()
     }
-
+    
     // Last tube is empty
     this.tubes[colorCount].colors = []
     this.tubes[colorCount].draw()
-
-    // 2. Apply random moves in reverse to shuffle the puzzle
-    // Number of random moves determines difficulty
-    const shuffleMoves = tubeHeight * tubeCount * 2 // Adjust for desired difficulty
-
-    for (let move = 0; move < shuffleMoves; move++) {
+    
+    // Apply just a few random reverse pours to make it slightly challenging but definitely solvable
+    const simpleMoves = Math.min(5, tubeHeight)
+    
+    for (let move = 0; move < simpleMoves; move++) {
       this.applyRandomReversePour()
     }
   }
@@ -166,6 +210,16 @@ export class GameLogic {
   reset(): boolean {
     this.clearSelection()
     this.generateSolvablePuzzleFromSolvedState()
+    
+    // Double-check that the generated puzzle is solvable
+    if (!this.isSolvable()) {
+      console.warn("Generated puzzle is not solvable after reset. Trying again with a simpler puzzle.")
+      const tubeCount = this.tubes.length
+      const tubeHeight = this.tubes[0].maxHeight
+      const colorCount = tubeCount - 1
+      this.createSimpleSolvablePuzzle(tubeCount, tubeHeight, colorCount)
+    }
+    
     // Clear move history when game is reset
     this.moveHistory = []
     // Notify about history change
@@ -542,7 +596,9 @@ export class GameLogic {
             console.warn(
               `Search space too large (${visited.size} states), stopping BFS`
             )
-            return true // Assume it's solvable rather than continuing indefinitely
+            // Return false instead of assuming it's solvable
+            // This will cause the puzzle generation to try again
+            return false
           }
         }
       }
