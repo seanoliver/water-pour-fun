@@ -51,7 +51,19 @@ export const GameContainer = () => {
 
   return (
     <div className="flex justify-center items-center py-8">
-      <div id="phaser-game" ref={phaserGameRef} />
+      <div 
+        className="rounded-xl shadow-xl overflow-hidden"
+        style={{ 
+          padding: '0',
+          display: 'inline-block',
+          lineHeight: '0'
+        }}
+      >
+        <div 
+          id="phaser-game" 
+          ref={phaserGameRef} 
+        />
+      </div>
     </div>
   )
 }
