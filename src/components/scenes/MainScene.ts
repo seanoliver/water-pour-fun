@@ -14,6 +14,7 @@ export default class MainScene extends Phaser.Scene {
   private difficultyChooser?: Phaser.GameObjects.Text
   private controlPanel?: Phaser.GameObjects.Rectangle
   private gameTitle?: Phaser.GameObjects.Text
+  private scoreDisplay?: Phaser.GameObjects.Text
   public debugManager = new DebugManager(this)
   
   public difficulty: keyof typeof DIFFICULTY = "MEDIUM"
@@ -49,9 +50,25 @@ export default class MainScene extends Phaser.Scene {
     // Add debug button
     this.createDebugButton()
 
+    // Add score display
+    this.createScoreDisplay()
+
     // Listen for move history changes to update the counter
     this.gameLogic.on("historyChange", (moveCount: unknown) => {
       this.updateMoveCounter(Number(moveCount))
+    }, this)
+
+    // Listen for score updates
+    this.gameLogic.on("scoreUpdate", (score: unknown) => {
+      this.updateScore(Number(score))
+    }, this)
+
+    // Listen for game solved event
+    this.gameLogic.on("gameSolved", (finalScore: unknown) => {
+      // Update the score with the final score (includes completion bonus)
+      if (finalScore !== undefined) {
+        this.updateScore(Number(finalScore))
+      }
     }, this)
   }
 
@@ -302,49 +319,141 @@ export default class MainScene extends Phaser.Scene {
     this.debugManager.updateSolvableState()
   }
 
-  // This method is called from GameLogic when the game is over
-  gameOver(isWin: boolean) {
-    const message = isWin ? "YOU WIN!" : "GAME OVER!"
-    const color = isWin ? HEX_COLORS.GREEN : HEX_COLORS.RED
-    const bgColor = isWin ? COLORS.DARK_GREEN : COLORS.MAROON
+  /**
+   * Create a score display that shows the player's current score
+   */
+  private createScoreDisplay() {
+    // Position the score display at the top of the screen
+    const x = APP_WIDTH / 2
+    const y = 130
 
-    // Create a modal background
-    const modalBg = this.add.rectangle(
-      APP_WIDTH / 2,
-      APP_HEIGHT / 2,
-      300,
-      150,
-      bgColor,
-      0.9
-    )
-    .setOrigin(0.5)
-    .setStrokeStyle(4, COLORS.WHITE)
-    
-    const messageText = this.add
-      .text(APP_WIDTH / 2, APP_HEIGHT / 2, message, {
-        fontSize: "32px",
+    // Create the score display with a nice style
+    this.scoreDisplay = this.add
+      .text(x, y, "SCORE: 0", {
+        fontSize: "28px",
         fontStyle: "bold",
-        color: color,
-        align: "center",
-        stroke: HEX_COLORS.WHITE,
-        strokeThickness: 2,
+        color: HEX_COLORS.WHITE,
+        stroke: HEX_COLORS.DARK_GREEN,
+        strokeThickness: 4,
         shadow: {
           offsetX: 2,
           offsetY: 2,
-          color: '0x000000',
-          blur: 5,
+          color: HEX_COLORS.DARK_GREEN,
+          blur: 3,
+          stroke: true,
           fill: true
         }
       })
       .setOrigin(0.5)
+      .setAlpha(0)
 
-    // Add appear animation
+    // Add a fade-in animation for the score
     this.tweens.add({
-      targets: [modalBg, messageText],
-      scaleX: { from: 0, to: 1 },
-      scaleY: { from: 0, to: 1 },
+      targets: this.scoreDisplay,
+      alpha: 1,
+      y: 125,
+      duration: 800,
+      ease: 'Power2',
+      delay: 200
+    })
+  }
+
+  /**
+   * Update the score display with the current score
+   */
+  private updateScore(score: number) {
+    if (this.scoreDisplay) {
+      // Update the score value
+      this.score = score
+      this.scoreDisplay.setText(`SCORE: ${score}`)
+
+      // Add a pulse animation when the score changes
+      this.tweens.add({
+        targets: this.scoreDisplay,
+        scaleX: 1.2,
+        scaleY: 1.2,
+        duration: 100,
+        yoyo: true,
+        ease: 'Power1'
+      })
+    }
+  }
+
+  /**
+   * Handle game over state
+   */
+  gameOver(isWin: boolean) {
+    // Create a semi-transparent overlay
+    const overlay = this.add.rectangle(
+      APP_WIDTH / 2,
+      APP_HEIGHT / 2,
+      APP_WIDTH,
+      APP_HEIGHT,
+      0x000000,
+      0.7
+    )
+
+    // Create game over text
+    const gameOverText = this.add.text(
+      APP_WIDTH / 2,
+      APP_HEIGHT / 2 - 50,
+      isWin ? "PUZZLE SOLVED!" : "GAME OVER",
+      {
+        fontSize: "48px",
+        fontStyle: "bold",
+        color: HEX_COLORS.WHITE,
+        stroke: isWin ? HEX_COLORS.DARK_GREEN : HEX_COLORS.MAROON,
+        strokeThickness: 6,
+      }
+    )
+    gameOverText.setOrigin(0.5)
+
+    // Add final score text
+    const finalScoreText = this.add.text(
+      APP_WIDTH / 2,
+      APP_HEIGHT / 2 + 20,
+      `FINAL SCORE: ${this.score}`,
+      {
+        fontSize: "36px",
+        fontStyle: "bold",
+        color: HEX_COLORS.WHITE,
+        stroke: HEX_COLORS.DARK_VIOLET,
+        strokeThickness: 4,
+      }
+    )
+    finalScoreText.setOrigin(0.5)
+
+    // Add play again button
+    const playAgainButton = this.add.text(
+      APP_WIDTH / 2,
+      APP_HEIGHT / 2 + 100,
+      "PLAY AGAIN",
+      {
+        fontSize: "32px",
+        backgroundColor: HEX_COLORS.DARK_GREEN,
+        padding: PADDING_BOX,
+        color: HEX_COLORS.WHITE,
+      }
+    )
+    playAgainButton.setOrigin(0.5)
+    playAgainButton.setInteractive({ useHandCursor: true })
+    playAgainButton.on("pointerdown", () => {
+      // Remove game over elements
+      overlay.destroy()
+      gameOverText.destroy()
+      finalScoreText.destroy()
+      playAgainButton.destroy()
+
+      // Reset the game
+      this.gameLogic.reset()
+    })
+
+    // Add entrance animations
+    this.tweens.add({
+      targets: [overlay, gameOverText, finalScoreText, playAgainButton],
+      alpha: { from: 0, to: 1 },
       duration: 500,
-      ease: 'Back.easeOut'
+      ease: "Power2",
     })
   }
 }

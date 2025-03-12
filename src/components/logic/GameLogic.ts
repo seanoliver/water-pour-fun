@@ -11,6 +11,7 @@ interface GameScene extends Phaser.Scene {
 interface GameState {
   solved: boolean
   solvable: boolean
+  score: number
 }
 
 interface MinimalTube {
@@ -37,6 +38,16 @@ interface Move {
   count: number;
 }
 
+// Add a new interface for scoring metrics
+interface ScoreMetrics {
+  moveCount: number;
+  optimalMoveCount: number | null;
+  completedTubes: number;
+  totalTubes: number;
+  startTime: number;
+  currentTime: number;
+}
+
 const MAX_BFS_STATES = 500000 // Increased from 100000 to allow for more thorough search
 
 export class GameLogic {
@@ -46,6 +57,17 @@ export class GameLogic {
   private setupAttempts = 0
   // Add move history array to track moves
   private moveHistory: Move[] = []
+  // Add scoring metrics
+  private scoreMetrics: ScoreMetrics = {
+    moveCount: 0,
+    optimalMoveCount: null,
+    completedTubes: 0,
+    totalTubes: 0,
+    startTime: 0,
+    currentTime: 0
+  }
+  // Add current score
+  private currentScore: number = 0
 
   constructor(private scene: GameScene) {
     this.events = new Phaser.Events.EventEmitter()
@@ -56,7 +78,22 @@ export class GameLogic {
    */
   setup(tubes: Tube[]): boolean {
     this.tubes = tubes
-    return this.generateSolvablePuzzle()
+    // Initialize scoring metrics
+    this.scoreMetrics = {
+      moveCount: 0,
+      optimalMoveCount: null,
+      completedTubes: 0,
+      totalTubes: tubes.length,
+      startTime: Date.now(),
+      currentTime: Date.now()
+    }
+    this.currentScore = 0
+    const result = this.generateSolvablePuzzle()
+    
+    // Estimate optimal move count after generating puzzle
+    this.estimateOptimalMoveCount()
+    
+    return result
   }
 
   /**
@@ -226,6 +263,20 @@ export class GameLogic {
     this.events.emit("historyChange", this.moveHistory.length)
     // Update the game state to ensure debug info is current
     this.updateGameState()
+    
+    // Reset scoring metrics
+    this.scoreMetrics = {
+      moveCount: 0,
+      optimalMoveCount: this.scoreMetrics.optimalMoveCount, // Keep the optimal estimate
+      completedTubes: 0,
+      totalTubes: this.tubes.length,
+      startTime: Date.now(),
+      currentTime: Date.now()
+    }
+    
+    this.currentScore = 0;
+    this.updateGameState();
+    
     return true
   }
 
@@ -377,22 +428,59 @@ export class GameLogic {
    */
   private updateGameState(): void {
     const gameState = this.checkGameState()
-
-    // Update the scene's solvability status
-    if (this.scene.isSolvable !== undefined) {
-      this.scene.isSolvable = gameState.solvable
-
-      // Update debug display if available
-      if (this.scene.debugManager) {
-        this.scene.debugManager.updateSolvableState()
-      }
+    
+    // Calculate score
+    const score = this.calculateScore();
+    
+    // Update the scene's score property if it exists
+    if ('score' in this.scene) {
+      this.scene.score = score;
+    }
+    
+    // Emit score update event
+    this.events.emit("scoreUpdate", score);
+    
+    // Update debug info
+    if (this.scene.debugManager) {
+      this.scene.debugManager.updateDebugInfo({
+        isSolved: gameState.solved,
+        isSolvable: gameState.solvable,
+        moveCount: this.moveHistory.length,
+        score: score,
+        optimalMoveEstimate: this.scoreMetrics.optimalMoveCount,
+        completedTubes: this.scoreMetrics.completedTubes,
+        totalTubes: this.scoreMetrics.totalTubes
+      })
     }
 
-    // Emit events based on game state
+    // Handle game state changes
     if (gameState.solved) {
-      this.events.emit("gameSolved")
+      // Calculate final score with a completion bonus
+      const finalScore = Math.round(score * 1.2); // 20% bonus for completing the puzzle
+      
+      // Update the scene's score
+      if ('score' in this.scene) {
+        this.scene.score = finalScore;
+      }
+      
+      // Emit final score update
+      this.events.emit("scoreUpdate", finalScore);
+      
+      // Emit game solved event with the final score
+      this.events.emit("gameSolved", finalScore);
+      
+      // Call the game over method on the scene if it exists
+      if ('gameOver' in this.scene && typeof this.scene.gameOver === 'function') {
+        this.scene.gameOver(true);
+      }
     } else if (!gameState.solvable) {
-      this.events.emit("gameNotSolvable")
+      // Emit game not solvable event
+      this.events.emit("gameNotSolvable");
+      
+      // Call the game over method on the scene if it exists
+      if ('gameOver' in this.scene && typeof this.scene.gameOver === 'function') {
+        this.scene.gameOver(false);
+      }
     }
   }
 
@@ -425,6 +513,10 @@ export class GameLogic {
 
     // Execute the pour
     this.executePour(fromTube, toTube, topFromColor, segmentsToActuallyPour)
+    
+    // After successful pour, update the score
+    this.updateGameState();
+    
     return true
   }
 
@@ -453,7 +545,7 @@ export class GameLogic {
   }
 
   /**
-   * Execute the pour operation between tubes
+   * Execute a pour from one tube to another
    */
   private executePour(
     fromTube: Tube,
@@ -461,39 +553,52 @@ export class GameLogic {
     color: number,
     count: number
   ): void {
+    // Remove colors from source tube
     fromTube.removeTopColors(count)
+
+    // Add colors to destination tube
     toTube.addColors(color, count)
-    
-    // Record this move in the history
-    const fromIndex = this.findTubeIndex(fromTube);
-    const toIndex = this.findTubeIndex(toTube);
-    
+
+    // Redraw tubes
+    fromTube.draw()
+    toTube.draw()
+
+    // Animate the pour
+    fromTube.pourTo(toTube)
+
+    // Add to move history
     this.moveHistory.push({
-      fromIndex,
-      toIndex,
+      fromIndex: this.tubes.indexOf(fromTube),
+      toIndex: this.tubes.indexOf(toTube),
       color,
-      count
-    });
-    
-    // Notify about history change
+      count,
+    })
+
+    // Update move count in score metrics
+    this.scoreMetrics.moveCount = this.moveHistory.length;
+
+    // Emit history change event
     this.events.emit("historyChange", this.moveHistory.length)
-    
-    this.updateGameState()
+
+    // Check if the game is solved
+    if (this.isSolved()) {
+      this.events.emit("gameSolved")
+    }
   }
 
   /**
    * Check the current game state
    */
   checkGameState(): GameState {
-    if (this.isSolved()) {
-      this.events.emit("gameSolved")
-      return { solved: true, solvable: true }
-    } else if (!this.isSolvable()) {
-      this.events.emit("gameNotSolvable")
-      return { solved: false, solvable: false }
+    const solved = this.isSolved()
+    const solvable = this.isSolvable()
+    const score = this.calculateScore()
+    
+    return {
+      solved,
+      solvable,
+      score
     }
-
-    return { solved: false, solvable: true }
   }
 
   /**
@@ -774,43 +879,142 @@ export class GameLogic {
     return this.events.off(event, fn, context)
   }
 
-  // Add a method to undo the last move
+  /**
+   * Undo the last move
+   */
   undo(): boolean {
     if (this.moveHistory.length === 0) {
-      return false; // No moves to undo
+      return false
     }
-    
+
     // Get the last move
-    const lastMove = this.moveHistory.pop();
-    
-    if (!lastMove) {
-      return false;
-    }
-    
-    // Clear any selection
-    this.clearSelection();
-    
-    // Perform the reverse operation
-    const fromTube = this.tubes[lastMove.toIndex];   // Note: these are reversed
-    const toTube = this.tubes[lastMove.fromIndex];   // for undoing
-    
-    // Remove the colors from the destination tube
-    fromTube.removeTopColors(lastMove.count);
-    
-    // Add the colors back to the source tube
-    toTube.addColors(lastMove.color, lastMove.count);
-    
-    // Notify about history change
+    const lastMove = this.moveHistory.pop()
+    if (!lastMove) return false
+
+    // Get the tubes involved in the last move
+    const fromTube = this.tubes[lastMove.toIndex]
+    const toTube = this.tubes[lastMove.fromIndex]
+
+    // Remove colors from the destination tube of the original move
+    fromTube.removeTopColors(lastMove.count)
+
+    // Add colors back to the source tube of the original move
+    toTube.addColors(lastMove.color, lastMove.count)
+
+    // Redraw tubes
+    fromTube.draw()
+    toTube.draw()
+
+    // Update move count in score metrics
+    this.scoreMetrics.moveCount = this.moveHistory.length;
+
+    // Emit history change event
     this.events.emit("historyChange", this.moveHistory.length)
-    
-    // Update game state after undoing
-    this.updateGameState();
-    
-    return true;
+
+    // Update game state
+    this.updateGameState()
+
+    return true
   }
   
   // Get the number of moves made
   getMoveCount(): number {
     return this.moveHistory.length;
+  }
+
+  /**
+   * Estimate the optimal number of moves to solve the puzzle
+   * This is a heuristic based on the number of color segments that need to be moved
+   */
+  private estimateOptimalMoveCount(): void {
+    // Count the number of color segments that need to be moved
+    let segmentsToMove = 0;
+    const colorCounts: Record<number, number> = {};
+    
+    // Count colors in each tube
+    for (const tube of this.tubes) {
+      let lastColor: number | null = null;
+      
+      for (let i = tube.colors.length - 1; i >= 0; i--) {
+        const color = tube.colors[i];
+        
+        // Initialize color count if not exists
+        if (colorCounts[color] === undefined) {
+          colorCounts[color] = 0;
+        }
+        colorCounts[color]++;
+        
+        // If color changes, we have a new segment
+        if (lastColor !== null && lastColor !== color) {
+          segmentsToMove++;
+        }
+        
+        lastColor = color;
+      }
+    }
+    
+    // Minimum moves is at least the number of segments minus the number of colors
+    // (since each color needs to be in one tube)
+    const colorCount = Object.keys(colorCounts).length;
+    
+    // Heuristic: Each color needs to be consolidated, which takes at least
+    // (segments - colors) moves, plus some overhead for moving between tubes
+    this.scoreMetrics.optimalMoveCount = Math.max(segmentsToMove - colorCount, colorCount);
+  }
+
+  /**
+   * Calculate the current score based on various metrics
+   */
+  private calculateScore(): number {
+    // Update current time
+    this.scoreMetrics.currentTime = Date.now();
+    
+    // Count completed tubes
+    this.scoreMetrics.completedTubes = this.tubes.filter(tube => tube.isCompleted()).length;
+    
+    // Base score starts at 1000
+    let score = 1000;
+    
+    // Deduct points for excess moves if we have an optimal estimate
+    if (this.scoreMetrics.optimalMoveCount !== null) {
+      const moveEfficiency = Math.max(0, 1 - (this.scoreMetrics.moveCount - this.scoreMetrics.optimalMoveCount) / 
+                                     (this.scoreMetrics.optimalMoveCount * 2));
+      score *= moveEfficiency;
+    } else {
+      // If we don't have an optimal estimate, use a simpler formula
+      const moveDeduction = Math.min(500, this.scoreMetrics.moveCount * 5);
+      score -= moveDeduction;
+    }
+    
+    // Add points for completed tubes
+    const completionBonus = (this.scoreMetrics.completedTubes / this.scoreMetrics.totalTubes) * 500;
+    score += completionBonus;
+    
+    // Time factor (gentle penalty for taking longer)
+    const timeElapsedSeconds = (this.scoreMetrics.currentTime - this.scoreMetrics.startTime) / 1000;
+    const timeFactor = Math.max(0.5, 1 - (timeElapsedSeconds / 300)); // 5 minutes to reach 50% penalty
+    score *= timeFactor;
+    
+    // Ensure score is never negative
+    score = Math.max(0, Math.round(score));
+    
+    // Update current score
+    this.currentScore = score;
+    
+    return score;
+  }
+
+  /**
+   * Get the current score
+   */
+  getScore(): number {
+    return this.currentScore;
+  }
+
+  /**
+   * Get the scoring metrics
+   */
+  getScoringMetrics(): ScoreMetrics {
+    return { ...this.scoreMetrics };
   }
 }

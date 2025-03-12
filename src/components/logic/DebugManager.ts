@@ -2,6 +2,19 @@ import { HEX_COLORS, PADDING_BOX, APP_WIDTH } from "@/lib/constants"
 import MainScene from "../scenes/MainScene"
 
 /**
+ * Debug information interface
+ */
+interface DebugInfo {
+  isSolved: boolean;
+  isSolvable: boolean;
+  moveCount: number;
+  score: number;
+  optimalMoveEstimate: number | null;
+  completedTubes: number;
+  totalTubes: number;
+}
+
+/**
  * Manages debug information display for the game
  * Provides a sleek, toggleable debug overlay with game state information
  */
@@ -10,6 +23,15 @@ export class DebugManager {
   private debugPanel: Phaser.GameObjects.Container | null = null
   private debugText: Phaser.GameObjects.Text | null = null
   private debugBackground: Phaser.GameObjects.Rectangle | null = null
+  private debugInfo: DebugInfo = {
+    isSolved: false,
+    isSolvable: true,
+    moveCount: 0,
+    score: 0,
+    optimalMoveEstimate: null,
+    completedTubes: 0,
+    totalTubes: 0
+  }
 
   constructor(private readonly game: MainScene) {}
 
@@ -33,6 +55,16 @@ export class DebugManager {
    * Call this whenever relevant game state changes
    */
   public updateSolvableState(): void {
+    if (this.debugMode) {
+      this.updateDebugDisplay()
+    }
+  }
+
+  /**
+   * Update debug information with new data
+   */
+  public updateDebugInfo(info: DebugInfo): void {
+    this.debugInfo = info;
     if (this.debugMode) {
       this.updateDebugDisplay()
     }
@@ -78,16 +110,20 @@ export class DebugManager {
     // Format debug information
     const debugInfo = [
       `DIFFICULTY: ${this.game.difficulty}`,
-      `SCORE: ${this.game.score}`,
-      `IS SOLVABLE: ${this.game.isSolvable}`,
+      `SCORE: ${this.debugInfo.score}`,
+      `MOVES: ${this.debugInfo.moveCount}`,
+      `OPTIMAL MOVES: ${this.debugInfo.optimalMoveEstimate || 'Unknown'}`,
+      `COMPLETED TUBES: ${this.debugInfo.completedTubes}/${this.debugInfo.totalTubes}`,
+      `IS SOLVABLE: ${this.debugInfo.isSolvable}`,
+      `IS SOLVED: ${this.debugInfo.isSolved}`,
     ].join("\n")
 
     // Create semi-transparent background
     this.debugBackground = this.game.add.rectangle(
       0,
       0,
-      200,
-      100,
+      250,
+      160,
       0x000000,
       0.7
     )
