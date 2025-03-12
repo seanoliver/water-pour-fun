@@ -1,5 +1,6 @@
 import * as Phaser from "phaser"
-import { COLOR_PALETTE, COLORS } from "../../lib/constants"
+import { COLOR_PALETTE, COLORS } from "@/lib/constants"
+import { PhaserGraphics } from "@/lib/phaser-graphics"
 
 export class Tube {
   private graphics: Phaser.GameObjects.Graphics
@@ -124,8 +125,13 @@ export class Tube {
     this.tubeHighlight.clear()
 
     // Draw shadow under the tube
-    this.graphics.fillStyle(0x000000, 0.2)
-    this.graphics.fillEllipse(this.x, this.y + 85, this.TUBE_WIDTH + 10, 20)
+    PhaserGraphics.setFillStyle(this.graphics, { color: 0x000000, alpha: 0.2 })
+    PhaserGraphics.drawFilledEllipse(this.graphics, {
+      centerX: this.x,
+      centerY: this.y + 85,
+      width: this.TUBE_WIDTH + 10,
+      height: 20,
+    })
 
     // Draw the tube glass with rounded ends
     this.drawTubeGlass()
@@ -162,9 +168,12 @@ export class Tube {
     }
 
     // Draw tube background (glass effect)
-    this.graphics.fillStyle(COLORS.WHITE, 0.15)
+    PhaserGraphics.setFillStyle(this.graphics, {
+      color: COLORS.WHITE,
+      alpha: 0.15,
+    })
     this.drawRoundedTube(x, y, width, height, radius)
-    this.graphics.fillPath()
+    PhaserGraphics.fillPath(this.graphics)
 
     // Draw tube border
     this.graphics.lineStyle(borderWidth, borderColor, borderAlpha)
@@ -182,64 +191,83 @@ export class Tube {
     const halfWidth = width / 2
 
     // Create a rounded rectangle path for the tube
-    this.graphics.beginPath()
+    PhaserGraphics.beginPath(this.graphics)
 
     // Top-left rounded corner
-    this.graphics.moveTo(x - halfWidth + radius, y - height / 2)
+    PhaserGraphics.moveTo(this.graphics, {
+      x: x - halfWidth + radius,
+      y: y - height / 2,
+    })
 
     // Top edge
-    this.graphics.lineTo(x + halfWidth - radius, y - height / 2)
+    PhaserGraphics.lineTo(this.graphics, {
+      x: x + halfWidth - radius,
+      y: y - height / 2,
+    })
 
     // Top-right rounded corner
-    this.graphics.arc(
-      x + halfWidth - radius,
-      y - height / 2 + radius,
+    PhaserGraphics.drawArc(this.graphics, {
+      centerX: x + halfWidth - radius,
+      centerY: y - height / 2 + radius,
       radius,
-      -Math.PI / 2,
-      0,
-      false
-    )
+      startAngle: -Math.PI / 2, // -90 degrees
+      endAngle: 0, // 0 degrees
+      anticlockwise: false,
+    })
 
     // Right edge
-    this.graphics.lineTo(x + halfWidth, y + height / 2 - radius)
+    PhaserGraphics.lineTo(this.graphics, {
+      x: x + halfWidth,
+      y: y + height / 2 - radius,
+    })
 
     // Bottom-right rounded corner
-    this.graphics.arc(
-      x + halfWidth - radius,
-      y + height / 2 - radius,
+    PhaserGraphics.drawArc(this.graphics, {
+      centerX: x + halfWidth - radius,
+      centerY: y + height / 2 - radius,
       radius,
-      0,
-      Math.PI / 2,
-      false
-    )
+      startAngle: 0, // 0 degrees
+      endAngle: Math.PI / 2, // 90 degrees
+      anticlockwise: false,
+    })
 
     // Bottom rounded edge (half circle)
-    this.graphics.arc(x, y + height / 2 - radius, halfWidth, 0, Math.PI, false)
+    PhaserGraphics.drawArc(this.graphics, {
+      centerX: x,
+      centerY: y + height / 2 - radius,
+      radius: halfWidth,
+      startAngle: 0, // 0 degrees
+      endAngle: Math.PI, // 180 degrees
+      anticlockwise: false,
+    })
 
     // Bottom-left rounded corner
-    this.graphics.arc(
-      x - halfWidth + radius,
-      y + height / 2 - radius,
+    PhaserGraphics.drawArc(this.graphics, {
+      centerX: x - halfWidth + radius,
+      centerY: y + height / 2 - radius,
       radius,
-      Math.PI / 2,
-      Math.PI,
-      false
-    )
+      startAngle: Math.PI / 2, // 90 degrees
+      endAngle: Math.PI, // 180 degrees
+      anticlockwise: false,
+    })
 
     // Left edge
-    this.graphics.lineTo(x - halfWidth, y - height / 2 + radius)
+    PhaserGraphics.lineTo(this.graphics, {
+      x: x - halfWidth,
+      y: y - height / 2 + radius,
+    })
 
     // Top-left rounded corner
-    this.graphics.arc(
-      x - halfWidth + radius,
-      y - height / 2 + radius,
+    PhaserGraphics.drawArc(this.graphics, {
+      centerX: x - halfWidth + radius,
+      centerY: y - height / 2 + radius,
       radius,
-      Math.PI,
-      (3 * Math.PI) / 2,
-      false
-    )
+      startAngle: Math.PI, // 180 degrees
+      endAngle: (3 * Math.PI) / 2, // 270 degrees
+      anticlockwise: false,
+    })
 
-    this.graphics.closePath()
+    PhaserGraphics.closePath(this.graphics)
   }
 
   private drawWaterSegments() {
@@ -247,7 +275,7 @@ export class Tube {
 
     const segmentHeight = this.TUBE_HEIGHT / this.maxHeight
     const halfWidth = this.TUBE_WIDTH / 2 - 3 // Slightly smaller than tube
-    
+
     // Calculate the bottom position of the tube's inner area
     const bottomY = this.y + this.TUBE_HEIGHT / 2 - this.TUBE_RADIUS
 
@@ -260,58 +288,73 @@ export class Tube {
 
       // For the bottom segment, draw a proper rounded bottom
       if (isBottomSegment) {
-        this.graphics.fillStyle(color, 1)
+        PhaserGraphics.setFillStyle(this.graphics, { color })
 
         // Create a path for the bottom segment with rounded bottom
-        this.graphics.beginPath()
-        
+        PhaserGraphics.beginPath(this.graphics)
+
         // Start at the left side of the segment - MOVED UP to close the gap
         const topY = segmentY - segmentHeight / 2
-        this.graphics.moveTo(this.x - halfWidth, topY)
-        
+        PhaserGraphics.moveTo(this.graphics, { x: this.x - halfWidth, y: topY })
+
         // Draw to the right side - MOVED UP to close the gap
-        this.graphics.lineTo(this.x + halfWidth, topY)
-        
+        PhaserGraphics.lineTo(this.graphics, { x: this.x + halfWidth, y: topY })
+
         // Draw down the right side
-        this.graphics.lineTo(this.x + halfWidth, bottomY)
-        
+        PhaserGraphics.lineTo(this.graphics, {
+          x: this.x + halfWidth,
+          y: bottomY,
+        })
+
         // Draw the bottom curve - a half-circle that fills the tube bottom
-        this.graphics.arc(
-          this.x,
-          bottomY,
-          halfWidth,
-          0,
-          Math.PI,
-          false
-        )
-        
+        PhaserGraphics.drawArc(this.graphics, {
+          centerX: this.x,
+          centerY: bottomY,
+          radius: halfWidth,
+          startAngle: 0,
+          endAngle: Math.PI,
+          anticlockwise: false,
+        })
+
         // Complete the path back to the starting point - MOVED UP to close the gap
-        this.graphics.lineTo(this.x - halfWidth, topY)
-        this.graphics.closePath()
-        this.graphics.fillPath()
-        
+        PhaserGraphics.lineTo(this.graphics, { x: this.x - halfWidth, y: topY })
+        PhaserGraphics.closePath(this.graphics)
+        PhaserGraphics.fillPath(this.graphics)
+
         // Add a subtle highlight at the bottom to give depth
-        this.graphics.fillStyle(0xffffff, 0.1)
-        this.graphics.fillEllipse(
-          this.x,
-          bottomY - 2,
-          halfWidth * 0.5,
-          3
-        )
+        PhaserGraphics.setFillStyle(this.graphics, {
+          color: 0xffffff,
+          alpha: 0.1,
+        })
+        PhaserGraphics.drawFilledEllipse(this.graphics, {
+          centerX: this.x,
+          centerY: bottomY - 2,
+          width: halfWidth * 0.5,
+          height: 3,
+        })
       }
       // For the top segment, add a subtle wave effect
       else if (isTopSegment) {
-        this.graphics.fillStyle(color, 1)
+        PhaserGraphics.setFillStyle(this.graphics, { color })
 
         // Create a wavy top for the liquid
-        this.graphics.beginPath()
-        this.graphics.moveTo(this.x - halfWidth, segmentY + segmentHeight / 2)
+        PhaserGraphics.beginPath(this.graphics)
+        PhaserGraphics.moveTo(this.graphics, {
+          x: this.x - halfWidth,
+          y: segmentY + segmentHeight / 2,
+        })
 
         // Bottom edge
-        this.graphics.lineTo(this.x + halfWidth, segmentY + segmentHeight / 2)
+        PhaserGraphics.lineTo(this.graphics, {
+          x: this.x + halfWidth,
+          y: segmentY + segmentHeight / 2,
+        })
 
         // Right edge
-        this.graphics.lineTo(this.x + halfWidth, segmentY - segmentHeight / 2)
+        PhaserGraphics.lineTo(this.graphics, {
+          x: this.x + halfWidth,
+          y: segmentY - segmentHeight / 2,
+        })
 
         // Top wavy edge - more subtle wave
         const waveHeight = 1.5
@@ -325,96 +368,119 @@ export class Tube {
             segmentHeight / 2 +
             Math.sin((i / segments) * Math.PI) * waveHeight
 
-          this.graphics.lineTo(pointX, pointY)
+          PhaserGraphics.lineTo(this.graphics, { x: pointX, y: pointY })
         }
 
         // Left edge
-        this.graphics.lineTo(this.x - halfWidth, segmentY + segmentHeight / 2)
-        this.graphics.closePath()
-        this.graphics.fillPath()
+        PhaserGraphics.lineTo(this.graphics, {
+          x: this.x - halfWidth,
+          y: segmentY + segmentHeight / 2,
+        })
+        PhaserGraphics.closePath(this.graphics)
+        PhaserGraphics.fillPath(this.graphics)
 
         // Add highlight on top of liquid - more subtle
-        this.graphics.fillStyle(0xffffff, 0.2)
-        this.graphics.fillEllipse(
-          this.x,
-          segmentY - segmentHeight / 2 + 1,
-          halfWidth * 0.8,
-          3
-        )
+        PhaserGraphics.setFillStyle(this.graphics, {
+          color: 0xffffff,
+          alpha: 0.2,
+        })
+        PhaserGraphics.drawFilledEllipse(this.graphics, {
+          centerX: this.x,
+          centerY: segmentY - segmentHeight / 2 + 1,
+          width: halfWidth * 0.8,
+          height: 3,
+        })
       }
       // For middle segments, ensure they connect smoothly
       else {
-        this.graphics.fillStyle(color, 1)
-        this.graphics.fillRect(
-          this.x - halfWidth,
-          segmentY - segmentHeight / 2,
-          halfWidth * 2,
-          segmentHeight + 1 // Add 1 pixel overlap to avoid gaps
-        )
+        PhaserGraphics.setFillStyle(this.graphics, { color })
+        PhaserGraphics.drawFilledRect(this.graphics, {
+          x: this.x - halfWidth,
+          y: segmentY - segmentHeight / 2,
+          width: halfWidth * 2,
+          height: segmentHeight + 1, // Add 1 pixel overlap to avoid gaps
+        })
       }
     })
-    
+
     // Ensure water doesn't visually overflow the tube
     // We'll use a simpler approach by constraining the top segment's position
     if (this.colors.length > 0) {
-      const maxY = this.y - this.TUBE_HEIGHT / 2 + this.TUBE_RADIUS + 2;
-      const topIndex = this.colors.length - 1;
-      const topSegmentY = bottomY - topIndex * segmentHeight - segmentHeight / 2;
-      
+      const maxY = this.y - this.TUBE_HEIGHT / 2 + this.TUBE_RADIUS + 2
+      const topIndex = this.colors.length - 1
+      const topSegmentY = bottomY - topIndex * segmentHeight - segmentHeight / 2
+
       // If the top segment would overflow, redraw it with constrained height
       if (topSegmentY - segmentHeight / 2 < maxY) {
-        const topColor = this.colors[topIndex];
-        
+        const topColor = this.colors[topIndex]
+
         // Clear the potentially overflowing segment
-        this.graphics.fillStyle(0, 0); // Transparent
-        this.graphics.fillRect(
-          this.x - halfWidth - 1,
-          maxY - 5,
-          halfWidth * 2 + 2,
-          10
-        );
-        
+        PhaserGraphics.setFillStyle(this.graphics, { color: 0, alpha: 0 }) // Transparent
+        PhaserGraphics.drawFilledRect(this.graphics, {
+          x: this.x - halfWidth - 1,
+          y: maxY - 5,
+          width: halfWidth * 2 + 2,
+          height: 10,
+        })
+
         // Redraw the top segment with proper constraints
-        this.graphics.fillStyle(COLOR_PALETTE[topColor], 1);
-        
+        PhaserGraphics.setFillStyle(this.graphics, {
+          color: COLOR_PALETTE[topColor],
+        })
+
         // Calculate the visible portion height
-        const visibleHeight = Math.max(0, (topSegmentY + segmentHeight / 2) - maxY);
-        
+        const visibleHeight = Math.max(
+          0,
+          topSegmentY + segmentHeight / 2 - maxY
+        )
+
         if (visibleHeight > 0) {
           // Draw a properly constrained top segment
-          this.graphics.fillRect(
-            this.x - halfWidth,
-            maxY,
-            halfWidth * 2,
-            visibleHeight
-          );
-          
+          PhaserGraphics.drawFilledRect(this.graphics, {
+            x: this.x - halfWidth,
+            y: maxY,
+            width: halfWidth * 2,
+            height: visibleHeight,
+          })
+
           // Add a subtle wave effect at the top
-          this.graphics.fillStyle(COLOR_PALETTE[topColor], 1);
-          this.graphics.beginPath();
-          
+          PhaserGraphics.setFillStyle(this.graphics, {
+            color: COLOR_PALETTE[topColor],
+          })
+          PhaserGraphics.beginPath(this.graphics)
+
           // Draw a gentle curve at the top
-          this.graphics.moveTo(this.x - halfWidth, maxY);
-          
-          const curvePoints = 5;
+          PhaserGraphics.moveTo(this.graphics, {
+            x: this.x - halfWidth,
+            y: maxY,
+          })
+
+          const curvePoints = 5
           for (let i = 0; i <= curvePoints; i++) {
-            const pointX = this.x - halfWidth + (2 * halfWidth) * (i / curvePoints);
-            const pointY = maxY - Math.sin((i / curvePoints) * Math.PI) * 1.5;
-            this.graphics.lineTo(pointX, pointY);
+            const pointX =
+              this.x - halfWidth + 2 * halfWidth * (i / curvePoints)
+            const pointY = maxY - Math.sin((i / curvePoints) * Math.PI) * 1.5
+            PhaserGraphics.lineTo(this.graphics, { x: pointX, y: pointY })
           }
-          
-          this.graphics.lineTo(this.x + halfWidth, maxY);
-          this.graphics.closePath();
-          this.graphics.fillPath();
-          
+
+          PhaserGraphics.lineTo(this.graphics, {
+            x: this.x + halfWidth,
+            y: maxY,
+          })
+          PhaserGraphics.closePath(this.graphics)
+          PhaserGraphics.fillPath(this.graphics)
+
           // Add a subtle highlight
-          this.graphics.fillStyle(0xffffff, 0.15);
-          this.graphics.fillEllipse(
-            this.x,
-            maxY - 1,
-            halfWidth * 0.7,
-            2
-          );
+          PhaserGraphics.setFillStyle(this.graphics, {
+            color: 0xffffff,
+            alpha: 0.15,
+          })
+          PhaserGraphics.drawFilledEllipse(this.graphics, {
+            centerX: this.x,
+            centerY: maxY - 1,
+            width: halfWidth * 0.7,
+            height: 2,
+          })
         }
       }
     }
@@ -425,36 +491,41 @@ export class Tube {
 
     // Add glass reflection effect
     this.glassReflection.clear()
-    this.glassReflection.fillStyle(COLORS.WHITE, 0.3)
+    PhaserGraphics.setFillStyle(this.glassReflection, {
+      color: COLORS.WHITE,
+      alpha: 0.3,
+    })
 
     // Add thin vertical reflection
-    this.glassReflection.fillRect(
-      this.x + halfWidth * 0.5,
-      this.y - this.TUBE_HEIGHT / 2 + 10,
-      2,
-      this.TUBE_HEIGHT - 20
-    )
+    PhaserGraphics.drawFilledRect(this.glassReflection, {
+      x: this.x + halfWidth * 0.5,
+      y: this.y - this.TUBE_HEIGHT / 2 + 10,
+      width: 2,
+      height: this.TUBE_HEIGHT - 20,
+    })
 
     // Add thin highlight across the top curved area
-    this.glassReflection.fillStyle(COLORS.WHITE, 0.4)
+    PhaserGraphics.setFillStyle(this.glassReflection, {
+      color: COLORS.WHITE,
+      alpha: 0.4,
+    })
 
     // Draw small circular highlights near the corners
-    this.glassReflection.fillCircle(
-      this.x - halfWidth * 0.6,
-      this.y - this.TUBE_HEIGHT / 2 + 10,
-      3
-    )
+    PhaserGraphics.drawFilledCircle(this.glassReflection, {
+      centerX: this.x - halfWidth * 0.6,
+      centerY: this.y - this.TUBE_HEIGHT / 2 + 10,
+      radius: 3,
+    })
 
-    this.glassReflection.fillCircle(
-      this.x + halfWidth * 0.2,
-      this.y - this.TUBE_HEIGHT / 2 + 8,
-      2
-    )
+    PhaserGraphics.drawFilledCircle(this.glassReflection, {
+      centerX: this.x + halfWidth * 0.2,
+      centerY: this.y - this.TUBE_HEIGHT / 2 + 8,
+      radius: 2,
+    })
   }
 
   private drawSelectionEffects() {
     if (this.selected || this.hovered) {
-      // Update glow effect
       if (this.tubeGlow) {
         const glowAlpha = this.selected ? 0.5 : this.hovered ? 0.3 : 0
         const glowColor = this.selected ? COLORS.CYAN : COLORS.BRIGHT_ORANGE
@@ -463,20 +534,7 @@ export class Tube {
         this.tubeGlow.setTint(glowColor)
       }
 
-      // Draw highlight on the edge
       this.tubeHighlight.clear()
-      if (this.selected) {
-        const highlight = this.selected ? COLORS.CYAN : COLORS.BRIGHT_ORANGE
-        const highlightAlpha = this.selected ? 0.8 : 0.5
-
-        this.tubeHighlight.lineStyle(2, highlight, highlightAlpha)
-        this.tubeHighlight.strokeRect(
-          this.x - this.TUBE_WIDTH / 2 - 4,
-          this.y - this.TUBE_HEIGHT / 2 - 4,
-          this.TUBE_WIDTH + 8,
-          this.TUBE_HEIGHT + 4
-        )
-      }
     } else if (this.tubeGlow) {
       this.tubeGlow.setAlpha(0)
     }
